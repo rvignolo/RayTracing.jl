@@ -7,8 +7,8 @@ struct Segment{I,O,T}
     # element::E
 end
 
-# ID es id y AZMI es azim_idx
-# struct Track{ID,AZMI,I,O,L,T}
+# UID es universal id and AZ es azimuthal_index
+# struct Track{UID,AZMI,T,I,O,S}
 struct Track{T<:Real,I,O,S}
     ϕ::T
     xi::I
