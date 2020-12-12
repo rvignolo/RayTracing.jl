@@ -1,4 +1,3 @@
-using Test
 using GridapGmsh
 using GridapGmsh: gmsh, GmshDiscreteModel
 
@@ -84,15 +83,3 @@ if !("-nopopup" in ARGS)
 end
 
 gmsh.finalize()
-
-# puedo evitar escribir el file y inicializaar el GmshDiscreteModel
-mshfile = joinpath(@__DIR__,"..","pincell.msh")
-model = GmshDiscreteModel(mshfile; renumber=true)
-
-using RayTracing
-using Plots
-
-tg = TrackGenerator(model, 8, 0.04)
-trace!(tg)
-plot(tg)
-savefig("myplot.pdf")
