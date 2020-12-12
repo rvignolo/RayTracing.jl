@@ -168,21 +168,11 @@ function trace!(t::TrackGenerator)
         id += 1
     end
 
-
-    # defino los segmentos:
-    #   1. tienen un origin
-    #   2. tienen un end
-    #   3. tienen una longitud
-    #   4. tienen asociado un elemento
-    #   5. dado el elemento, tienen un tau que podemos computar
-
     return t
 end
 
 xorigin(n_tracks_x, i, j) = j <= n_tracks_x[i]
 yorigin(n_tracks_x, i, j) = !xorigin(n_tracks_x, i, j)
-
-using RecipesBase
 
 @recipe function plot(t::TrackGenerator{M,B,Q,T}; azim_idx=nothing, uid=nothing) where {M,B,Q,T}
     @unpack tracks_by_gid, n_total_tracks = t

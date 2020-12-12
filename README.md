@@ -2,13 +2,13 @@
 
 [![Build Status](https://github.com/rvignolo/RayTracing.jl/workflows/CI/badge.svg)](https://github.com/rvignolo/RayTracing.jl/actions)
 
-The Method of Characteristics can transform the partial integro-differential neutron transport equation to an ordinary differential equation over tracks that emulate neutron trajectories across a problem domain. This library adresses the cyclic ray tracing of those paths over any 2D rectangular mesh and computes quantities which can be used to solve the transport equation.
+ The partial integro-differential neutron transport equation can be casted to an ordinary differential equation over tracks that emulate neutron trajectories across a problem domain by means of the Method of Characteristics. This library adresses the cyclic ray tracing of those paths over any 2D rectangular mesh and computes quantities which can be used to solve the transport equation.
 
-We can create a `gmsh` mesh using [GridapGmsh.jl](https://github.com/gridap/GridapGmsh.jl). For example, [this](https://github.com/rvignolo/RayTracing.jl/demo/pincell.jl) file shows the definition of a simple **pin-cell** geometry.
+We can create a `gmsh` mesh using [GridapGmsh.jl](https://github.com/gridap/GridapGmsh.jl). For example, [this](https://github.com/rvignolo/RayTracing.jl/blob/main/demo/pincell-gmsh.jl) file shows the definition of a simple **pin-cell** geometry.
 
 ![](demo/pincell-msh.png)
 
-Then, we can define a `UnstructuredDiscreteModel`:
+Then, we can define an `UnstructuredDiscreteModel`:
 
 ```julia
 using GridapGmsh: GmshDiscreteModel
@@ -16,7 +16,7 @@ using GridapGmsh: GmshDiscreteModel
 mshfile = joinpath(@__DIR__,"demo","pincell.msh")
 model = GmshDiscreteModel(mshfile; renumber=true)
 ```
-and perform a ray tracing over such domain:
+and perform a ray tracing over such object:
 
 ```julia
 using Plots

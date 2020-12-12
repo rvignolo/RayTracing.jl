@@ -1,0 +1,4 @@
+
+IDEAS:
+  1. mirar Meshes.jl y a la organizacion que pertenece. ver funciones de buscar in element, si las tiene
+  2. kdtrees para meshes: https://github.com/KristofferC/NearestNeighbors.jl
