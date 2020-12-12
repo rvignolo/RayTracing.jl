@@ -10,7 +10,7 @@ struct TrackGenerator{M,B,Q<:AzimuthalQuadrature,T<:Real}
     n_total_tracks::Int
 
     tracks::Vector{Vector{Track}}
-    tracks_by_gid::Vector{Track}
+    tracks_by_uid::Vector{Track}
 
     tiny_step::T
     correct_volumes::Bool
@@ -19,9 +19,9 @@ end
 
 function TrackGenerator(mesh, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_volumes=false) where {T<:Real}
 
-    @assert n_azim > 0 "the number of azimuthal angles must be > 0."
-    @assert iszero(rem(n_azim, 4)) "the number of azimuthal angles must be a multiple of 4."
-    @assert δ > 0 "the azimuthal spacing must be > 0."
+    n_azim > 0 || throw(DomainError(n_azim, "number of azimuthal angles must be > 0."))
+    iszero(rem(n_azim, 4)) || throw(DomainError(n_azim, "number of azimuthal angles must be a multiple of 4."))
+    δ > 0 || throw(DomainError(δ, "azimuthal spacing must be > 0."))
 
     # `mesh` es `model` en realidad
     bounding_box = BoundingBox(mesh)
@@ -56,20 +56,20 @@ function TrackGenerator(mesh, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_vol
         tracks[i] = Vector{Track}(undef, n_tracks[i])
     end
 
-    tracks_by_gid = Vector{Track}(undef, n_total_tracks)
+    tracks_by_uid = Vector{Track}(undef, n_total_tracks)
 
     volumes = Vector{T}(undef, num_cells(mesh))
 
     return TrackGenerator(
         mesh, bounding_box, azimuthal_quadrature, n_tracks_x, n_tracks_y, n_tracks,
-        n_total_tracks, tracks, tracks_by_gid, tiny_step, correct_volumes, volumes
+        n_total_tracks, tracks, tracks_by_uid, tiny_step, correct_volumes, volumes
     )
 end
 
 function trace!(t::TrackGenerator)
     @unpack azimuthal_quadrature, bounding_box = t
     @unpack n_tracks_x, n_tracks_y, n_tracks = t
-    @unpack tracks, tracks_by_gid = t
+    @unpack tracks, tracks_by_uid = t
     @unpack n_azim_2, n_azim_4, δs, ϕs, ωₐ = azimuthal_quadrature
 
     # effective azimuthal spacings, used for some computations but not stored
@@ -162,10 +162,10 @@ function trace!(t::TrackGenerator)
         end
     end
 
-    id = 1
+    uid = 1
     for i in 1:n_azim_2, j in 1:n_tracks[i]
-        tracks_by_gid[id] = tracks[i][j]
-        id += 1
+        tracks_by_uid[uid] = tracks[i][j]
+        uid += 1
     end
 
     return t
@@ -175,13 +175,13 @@ xorigin(n_tracks_x, i, j) = j <= n_tracks_x[i]
 yorigin(n_tracks_x, i, j) = !xorigin(n_tracks_x, i, j)
 
 @recipe function plot(t::TrackGenerator{M,B,Q,T}; azim_idx=nothing, uid=nothing) where {M,B,Q,T}
-    @unpack tracks_by_gid, n_total_tracks = t
+    @unpack tracks_by_uid, n_total_tracks = t
 
     x = Matrix{T}(undef, 2, n_total_tracks)
     y = Matrix{T}(undef, 2, n_total_tracks)
 
     for j in 1:n_total_tracks
-        track = tracks_by_gid[j]
+        track = tracks_by_uid[j]
         x[1, j] = track.xi[1]
         x[2, j] = track.xo[1]
         y[1, j] = track.xi[2]
