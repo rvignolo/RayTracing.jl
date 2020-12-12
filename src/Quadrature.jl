@@ -11,11 +11,14 @@ end
 npolar(::PolarQuadrature{N}) where {N} = N
 npolar2(::PolarQuadrature{N}) where {N} = div(N, 2)
 
-TabuchiYamamoto(N::Int, T::Type{<:Real}=Float64) = TabuchiYamamoto(Val(N), T)
-GaussLegendre(N::Int, T::Type{<:Real}=Float64) = GaussLegendre(Val(N), T)
+for polar_quadrature in (:TabuchiYamamoto, :GaussLegendre, :EqualWeight, :EqualAngle, :Leonard)
+    @eval begin
+        $polar_quadrature(N::Int, T::Type{<:Real}=Float64) = $polar_quadrature(Val(N), T)
+    end
+end
 
 # this can be called if type stability is needed
-function TabuchiYamamoto(n_polar::Val{N}, T::Type{<:Real}=Float64) where {N<:Int}
+function TabuchiYamamoto(n_polar::Val{N}, T::Type{<:Real}=Float64) where {N}
     @assert N in (2, 4, 6) "the number of polar angles for TabuchiYamamoto must be in (2, 4, 6)"
 
     sinθs, θs, ωₚ = ntuple(_ -> Vector{T}(undef, N), 3)
@@ -64,10 +67,6 @@ function GaussLegendre(n_polar::Val{N}, T::Type{<:Real}=Float64) where {N<:Int}
     @assert N in (2, 4, 6, 8, 10, 12) "the number of polar angles for TabuchiYamamoto must be in (2, 4, 6, 8, 10, 12)"
 
 end
-# struct GaussLegendre <: AbstractPolarQuadrature end
-# struct EqualWeight <: AbstractPolarQuadrature end
-# struct EqualAngle <: AbstractPolarQuadrature end
-# struct Leonard <: AbstractPolarQuadrature end
 
 struct AzimuthalQuadrature{T}
     n_azim::Int    # the number of azimuthal angles in (0, 2π)
@@ -100,7 +99,7 @@ function init_weights!(aq::AzimuthalQuadrature)
         else
             ωₐ[i] = ϕs[i+1] - ϕs[i-1]
         end
-        ωₐ[i] /= (4π)
+        ωₐ[i] /= 4π
 
         j = suplementary_idx(aq, i)
         ωₐ[j] = ωₐ[i]
@@ -120,16 +119,21 @@ suplementary_idx(aq::AzimuthalQuadrature, i) = aq.n_azim_2 - i + 1
 struct Quadrature{A<:AzimuthalQuadrature,P<:PolarQuadrature,T<:Real}
     azimuthal::A
     polar::P
-    ω::Matrix{T}   # total weight, creo que basta con que sea matrix porque es rectangular
+    ω::Matrix{T}
 end
 
-function Quadrature(azimuthal, polar)
-    @unpack n_azim_2, δ = azimuthal
+function Quadrature(azimuthal::AzimuthalQuadrature{T}, polar::PolarQuadrature{N,T}, i) where {N,T}
+    @unpack n_azim_2, δs, ωₐ = azimuthal
+    @unpack sinθs, ωₚ = polar
+    n_polar_2 = npolar2(polar)
 
-    T = typeof(δ)  # TODO: metodo para tomar el T en cada Quadrature
-    ω = Matrix{T}(undef, n_azim_2, npolar(polar))
+    # IDEA: I think we can use n_azim_4 because the matrix shows repeated values
+    ω = Matrix{T}(undef, n_azim_2, n_polar_2) # we have polar symmetry
 
-    # TODO: rellenamos ω
+    for i in both_dir(azimuthal), j in 1:n_polar_2
+        ω[i, j] = 4 * π * ωₐ[i] * ωₚ[j] * δs[i] * sinθs[j]
+    end
+    # ω .*= 4π
 
     return Quadrature(azimuthal, polar, ω)
 end

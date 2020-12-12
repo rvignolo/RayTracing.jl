@@ -35,7 +35,6 @@ function TrackGenerator(mesh, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_vol
     n_tracks_y = Vector{Int}(undef, n_azim_2)
     n_tracks   = Vector{Int}(undef, n_azim_2)
 
-    # recorro un cuadrante y armo los suplementarios tambien
     for i in right_dir(azimuthal_quadrature)
         φ = π / n_azim_2 * (i - 1 / 2)
 
@@ -43,8 +42,8 @@ function TrackGenerator(mesh, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_vol
         n_tracks_y[i] = floor(Δy / δ * abs(cos(φ))) + 1
         n_tracks[i] = n_tracks_x[i] + n_tracks_y[i]
 
-        # los suplementarios tienen las mismas cantidades
-        j = n_azim_2 - i + 1
+        # supplementaries:
+        j = suplementary_idx(azimuthal_quadrature, i)
         n_tracks_x[j] = n_tracks_x[i]
         n_tracks_y[j] = n_tracks_y[i]
         n_tracks[j] = n_tracks[i]
@@ -90,7 +89,7 @@ function trace!(t::TrackGenerator)
         δy[i] = Δy / n_tracks_y[i]
         δs[i] = δx[i] * sin(ϕ)
 
-        # suplementarios:
+        # supplementaries:
         j = suplementary_idx(azimuthal_quadrature, i)
         ϕs[j] = π - ϕ
         δx[j] = δx[i]
@@ -99,7 +98,7 @@ function trace!(t::TrackGenerator)
         ωₐ[j] = ωₐ[i]
     end
 
-    # once we have computed all the azimuthal angles
+    # once we have computed all the azimuthal angles, compute weights
     init_weights!(azimuthal_quadrature)
 
     for i in both_dir(azimuthal_quadrature)
@@ -107,7 +106,7 @@ function trace!(t::TrackGenerator)
         # get azimuthal angle
         ϕ = ϕs[i]
 
-        # para todos los tracks en una dada direccion azimutal
+        # for all tracks in a given azimuthal direction
         for j in 1:n_tracks[i]
 
             if xorigin(n_tracks_x, i, j)
@@ -124,17 +123,18 @@ function trace!(t::TrackGenerator)
                 end
             end
 
-            # independientemente si apunta a derecha o izquierda puede salir por y = Δy
+            # regardless if it points to the right or left it can exit at y = Δy
             m = tan(ϕ)
             xo = Point{2,T}(xi[1] - (xi[2] - Δy) / m, Δy)
 
-            # si no es punto de salida, seguimos buscando
+            # keep going if `xo` is not an exit point
             if !(0 <= xo[1] <= Δx)
 
-                # aquellos que apuntan a la derecha, pueden salir tambien por x = Δx
+                # it can exit at x = Δx if it points to the right
                 if i <= n_azim_4
                     xo = Point{2,T}(Δx, xi[2] + m * (Δx - xi[1]))
-                # aquellos que apuntan a la izquierda, pueden salir tambien por x = 0
+
+                # or it can exit at x = 0 if it points to the left
                 else
                     xo = Point{2,T}(0, xi[2] - m * xi[1])
                 end
