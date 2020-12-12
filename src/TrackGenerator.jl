@@ -188,11 +188,13 @@ yorigin(n_tracks_x, i, j) = !xorigin(n_tracks_x, i, j)
         y[2, j] = track.xo[2]
     end
 
-    linecolor   --> :black
+    # analizar cuales van con --> y con := (una fuerza seguro y la otra no)
+    # linecolor   --> :black
     seriestype  :=  :path
     # markershape --> :circle
     linewidth   --> 0.20
     legend      --> false
+    border      := :none
 
     return (x, y)
 end
