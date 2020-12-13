@@ -1,6 +1,7 @@
 
-struct TrackGenerator{M,B,Q<:AzimuthalQuadrature,T<:Real}
-    mesh::M
+struct TrackGenerator{M,K,B,Q<:AzimuthalQuadrature,T<:Real}
+    model::M
+    kdtree::K
     bounding_box::B
 
     azimuthal_quadrature::Q
@@ -17,14 +18,16 @@ struct TrackGenerator{M,B,Q<:AzimuthalQuadrature,T<:Real}
     volumes::Vector{T}
 end
 
-function TrackGenerator(mesh, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_volumes=false) where {T<:Real}
+function TrackGenerator(model, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_volumes=false) where {T<:Real}
 
     n_azim > 0 || throw(DomainError(n_azim, "number of azimuthal angles must be > 0."))
-    iszero(rem(n_azim, 4)) || throw(DomainError(n_azim, "number of azimuthal angles must be a multiple of 4."))
+    iszero(rem(n_azim, 4)) || throw(DomainError(n_azim, "number of azimuthal angles must " *
+                                                        "be a multiple of 4."))
     δ > 0 || throw(DomainError(δ, "azimuthal spacing must be > 0."))
 
-    # `mesh` es `model` en realidad
-    bounding_box = BoundingBox(mesh)
+    grid = get_grid(model)
+    kdtree = KDTree(grid)
+    bounding_box = BoundingBox(grid)
     Δx, Δy = width(bounding_box), height(bounding_box)
 
     azimuthal_quadrature = AzimuthalQuadrature(n_azim, δ)
@@ -58,10 +61,10 @@ function TrackGenerator(mesh, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_vol
 
     tracks_by_uid = Vector{Track}(undef, n_total_tracks)
 
-    volumes = Vector{T}(undef, num_cells(mesh))
+    volumes = Vector{T}(undef, num_cells(model))
 
     return TrackGenerator(
-        mesh, bounding_box, azimuthal_quadrature, n_tracks_x, n_tracks_y, n_tracks,
+        model, kdtree, bounding_box, azimuthal_quadrature, n_tracks_x, n_tracks_y, n_tracks,
         n_total_tracks, tracks, tracks_by_uid, tiny_step, correct_volumes, volumes
     )
 end
@@ -123,7 +126,7 @@ function trace!(t::TrackGenerator)
                 end
             end
 
-            # regardless if it points to the right or left it can exit at y = Δy
+            # it can exit at y = Δy regardless if it points to the right or left
             m = tan(ϕ)
             xo = Point{2,T}(xi[1] - (xi[2] - Δy) / m, Δy)
 
@@ -174,7 +177,18 @@ end
 xorigin(n_tracks_x, i, j) = j <= n_tracks_x[i]
 yorigin(n_tracks_x, i, j) = !xorigin(n_tracks_x, i, j)
 
-@recipe function plot(t::TrackGenerator{M,B,Q,T}; azim_idx=nothing, uid=nothing) where {M,B,Q,T}
+function show(io::IO, t::TrackGenerator{K,B,Q,T}) where {K,B,Q,T}
+    @unpack azimuthal_quadrature, bounding_box, n_total_tracks, correct_volumes = t
+    @unpack n_azim_2, δs, ϕs = azimuthal_quadrature
+    # println(io, typeof(t))
+    println(io, "  Number of azimuthal angles in (0, π): ", n_azim_2)
+    println(io, "  Azimuthal angles in (0, π): ", round.(rad2deg.(ϕs), digits=2))
+    println(io, "  Effective azimuthal spacings: ", round.(δs, digits=3))
+    println(io, "  Total tracks: ", n_total_tracks)
+    print(io,   "  Correct volumes: ", correct_volumes)
+end
+
+@recipe function plot(t::TrackGenerator{K,B,Q,T}; azim_idx=nothing, uid=nothing) where {K,B,Q,T}
     @unpack tracks_by_uid, n_total_tracks = t
 
     x = Matrix{T}(undef, 2, n_total_tracks)
@@ -198,3 +212,24 @@ yorigin(n_tracks_x, i, j) = !xorigin(n_tracks_x, i, j)
 
     return (x, y)
 end
+
+
+#=
+using LazySets
+# generate `point`, a vector, and `nodes`, a 2d array or vector of vectors
+element = VPolygon(nodes)
+println(point in element)
+# Also, since you already know that your elements are convex sets and there is no redundance
+# in the list of nodes, you can speed up the instantiation by bypassing the convex hull
+# algorithm
+element = VPolygon(nodes; apply_convex_hull=false)
+
+# oh, an another question: is it possible to compute the intersection between two lines with
+# LazySets.jl? Yes, it looks like the Line, Line2D, or LineSegment types will do what you
+# need To find the intersection there is a lazy version, the Intersection type, and a
+# concrete operation, the intersection function. See
+# https://juliareach.github.io/LazySets.jl/dev/lib/binary_functions/#LazySets.intersection-Union{Tuple{N},%20Tuple{Line2D{N,VN}%20where%20VN%3C:AbstractArray{N,1},Line2D{N,VN}%20where%20VN%3C:AbstractArray{N,1}}}%20where%20N%3C:Real
+# Disclaimer, I don't know anything about what this package does internally, I'm just a
+# happy user for a one-off application where performance is not an issue
+
+=#
