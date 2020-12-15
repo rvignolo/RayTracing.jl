@@ -1,9 +1,9 @@
 
-struct Segment{I,O,T,E}
+struct Segment{I,O,E,T}
     xi::I
     xo::O
     ℓ::T
-    τ::T
+    # τ::T
     element::E
 end
 

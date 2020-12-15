@@ -1,22 +1,30 @@
-# IDEA
-# struct Mesh{M,G,K}
-#     model::M
-#     kdtree::K
-#     last_chosen_element # cache
-# end
+
+struct Mesh{M,K,B,N,C}
+    model::M
+    kdtree::K
+    bounding_box::B
+    node_cells::N
+    cell_nodes::C
+    # last_chosen_element # cache
+end
+
+function Mesh(model)
+    grid = get_grid(model)
+    kdtree = KDTree(grid)
+    bounding_box = BoundingBox(grid)
+    node_cells = get_faces(get_grid_topology(model), 0, num_cell_dims(model))
+    cell_nodes = grid.cell_nodes
+    return Mesh(model, kdtree, bounding_box, node_cells, cell_nodes)
+end
 
 """
     KDTree(grid::UnstructuredGrid)
 
 Builds a [`KDTree`](@ref) using node data from a `grid`.
 """
-function KDTree(grid::UnstructuredGrid)
+function KDTree(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
     nodes = get_node_coordinates(grid)
-
-    N = length(eltype(nodes))
-    T = eltype(eltype(nodes))
-    snodes = convert.(SVector{N,T}, nodes)
-
+    snodes = convert.(SVector{Dp,Tp}, nodes) # Dc or Dp?
     return KDTree(snodes)
 end
 
@@ -57,14 +65,11 @@ height(b::BoundingBox) = b.max[2] - b.min[2]
 # retorna el elemento de la malla al que pertenece el punto en el espacio `x`
 # mejor: function find_element(mesh, x) con mesh.kdtree y mesh.grid inside (also last_chosen_element)
 # function find_element(grid, kdtree, )
-function find_element(model, kdtree, x)
-
+function find_element(mesh, x, factor=2)
+    @unpack model, kdtree, node_cells, cell_nodes = mesh
     grid = get_grid(model)
-    # TODO: los node_cells no se debrian computar en cada llamada (no allocan igualmente)
-    node_cells = get_faces(get_grid_topology(model), 0, num_cell_dims(model))
-    cell_nodes = grid.cell_nodes
 
-    # 1. test last chosen element
+    # 1. test last chosen element (look cache)
     # element = mesh.last_chosen_element
     # if isassigned(element) end
 
@@ -83,6 +88,21 @@ function find_element(model, kdtree, x)
         end
     end
 
+    # si la malla esta deformada, i.e. los elementos que pertenecen al nodo mas cercano no
+    # contienen al punto, tenemos que ampliar la busqueda
+    # TODO: en lugar de incrementar el radio de busqueda, podriamos usar knn, y recorrer
+    # mas nodos. Esto me parece una mejor idea...
+    nns_ids = inrange(kdtree, x, factor * nn_distance, true)
+    for node_id in nns_ids
+        cells = node_cells[node_id]
+        for cell in cells
+            if point_in_element(grid, cell_nodes[cell], x)
+                return cell
+            end
+        end
+    end
+
+    return -1
 end
 
 # por ahora asumimos que son triangles siempre
@@ -101,13 +121,10 @@ function point_in_triangle(grid, nodes, x)
     λ2 = ((y3 - y1) * (x[1] - x3) + (x1 - x3 ) * (x[2] - y3)) / ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1- y3))
     λ3 = 1 - λ1 - λ2
 
-    cero = zero(λ1)
-    uno = one(λ1)
-
-    # @show λ1, λ2, λ3
-    # @show λ2 > cero, isequal(λ2, zero(λ2)), λ2 < cero
-
-    # TODO: si el punto cae en la superficie del elemento, creo que devuelve false, casi
-    # seguro cual es el comportamiento que quiero? ver wikipedia donde dice Summarizing:...
-    return λ1 > cero && λ1 < uno && λ2 > cero && λ2 < uno && λ3 > cero && λ3 < uno
+    # devuelve true si cae dentro o en la superficie del triangulo
+    T = typeof(λ1)
+    tol = sqrt(eps(T)) # por ahi es muy chica... ver de incrementarla si es necesario
+    domain = ClosedInterval{T}(zero(T) - tol, one(T) + tol)
+    # domain = OpenInterval{T}(zero(T) - tol, one(T) + tol) # devuelve true solo si es dentro
+    return λ1 in domain && λ2 in domain && λ3 in domain
 end
