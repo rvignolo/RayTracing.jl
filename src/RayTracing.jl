@@ -21,5 +21,6 @@ include("tracer.jl")
 
 export TrackGenerator
 export trace!
+export segmentize!
 
 end

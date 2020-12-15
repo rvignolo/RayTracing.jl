@@ -121,10 +121,16 @@ function point_in_triangle(grid, nodes, x)
     λ2 = ((y3 - y1) * (x[1] - x3) + (x1 - x3 ) * (x[2] - y3)) / ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1- y3))
     λ3 = 1 - λ1 - λ2
 
+    # @show x
+    # @show λ1, λ2, λ3
+
     # devuelve true si cae dentro o en la superficie del triangulo
     T = typeof(λ1)
-    tol = sqrt(eps(T)) # por ahi es muy chica... ver de incrementarla si es necesario
+    tol = sqrt(eps(T)) # por ahi es muy chica o muy grande... ver de incrementarla si es necesario
     domain = ClosedInterval{T}(zero(T) - tol, one(T) + tol)
     # domain = OpenInterval{T}(zero(T) - tol, one(T) + tol) # devuelve true solo si es dentro
+
+    # @show λ1 in domain && λ2 in domain && λ3 in domain
+
     return λ1 in domain && λ2 in domain && λ3 in domain
 end

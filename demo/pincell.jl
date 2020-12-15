@@ -24,3 +24,5 @@ plot(tg, dpi=300, size=(250,250), palette=:Paired_4, background_color=:transpare
 savefig("pincell.svg")
 savefig("pincell.pdf")
 savefig("pincell.png")
+
+segmentize!(tg)

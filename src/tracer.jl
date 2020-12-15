@@ -1,5 +1,5 @@
 
-struct TrackGenerator{M,Q<:AzimuthalQuadrature,T<:Real}
+struct TrackGenerator{M<:Mesh,Q<:AzimuthalQuadrature,T<:Real}
     mesh::M
 
     azimuthal_quadrature::Q
@@ -240,6 +240,7 @@ element = VPolygon(nodes; apply_convex_hull=false)
 function segmentize!(t::TrackGenerator)
     @unpack tracks_by_uid, tiny_step = t
     for track in tracks_by_uid
+        empty!(track.segments)
         segmentize_track!(t, track)
     end
     return t
@@ -252,12 +253,18 @@ function segmentize_track!(t::TrackGenerator, track::Track)
     @unpack model, kdtree, bounding_box, cell_nodes = mesh
     @unpack ϕ = track
 
+    # TODO: compute type T
     x0 = track.xi + tiny_step * Point{2,Float64}(cos(ϕ), sin(ϕ))
-    xp = convert(SVector{2,Float64}, x0)
+    xp = convert(MVector{2,Float64}, x0)
 
     factor = 2
 
     δ = 1e-16 # por ahora no lo uso
+
+    bbmax_x = bounding_box.max[1]
+    bbmax_y = bounding_box.max[2]
+    bbmin_x = bounding_box.min[1]
+    bbmin_y = bounding_box.min[1]
 
     i = 0
     element = -1
@@ -266,13 +273,30 @@ function segmentize_track!(t::TrackGenerator, track::Track)
 
         element = find_element(mesh, xp)
 
+        # @show element
+
         # si estamos arafue y nos retornaron un elemento (esto hace wasora, yo no), pero a
         # mi si me retorna el -1, por lo que esta bueno ver esto. mas adelante, si me dieron
         # -1 y estoy dentro del dominio, es porque la malla esta deformada.
-        if xp[1] >= bounding_box.max[1] || xp[1] <= bounding_box.min[1] ||
-           xp[2] >= bounding_box.max[2] || xp[2] <= bounding_box.min[2]
-            break
+
+        # puede pasar que este cerca de la bounding box
+        if isapprox(xp[1], bbmax_x, atol=tiny_step) || isapprox(xp[1], bbmin_x, atol=tiny_step) || isapprox(xp[2], bbmax_y, atol=tiny_step) || isapprox(xp[2], bbmin_y, atol=tiny_step)
+
+            if isempty(track.segments)
+                # puede estar recien comenzando a segmentar y en ese caso nos movemos un
+                # poquito mas y continuamos
+                xp += tiny_step * SVector{2,Float64}(cos(ϕ), sin(ϕ))
+                continue
+            else
+                # o puede haber terminado de segmentar y en ese caso nos vamos
+                break
+            end
         end
+
+        # if xp[1] >= bounding_box.max[1] || xp[1] <= bounding_box.min[1] ||
+        #    xp[2] >= bounding_box.max[2] || xp[2] <= bounding_box.min[2]
+        #     break
+        # end
 
         # en teoria, si estoy dentro del dominio y el track coincide con un lado de un
         # triangulo, igual me retorna un elemento, por eso no lo estoy considerando
@@ -302,7 +326,7 @@ function segmentize_track!(t::TrackGenerator, track::Track)
         nodes = cell_nodes[element]
         segment_points = compute_intersections(mesh, nodes, track, tiny_step, δ)
 
-        # mirar el azim_id del track mejor
+        # TODO: mirar el azim_id del track mejor
         if ϕ < π/2
             if segment_points[1,1] < segment_points[2,1]
                 # TODO: son MVector!
@@ -327,6 +351,10 @@ function segmentize_track!(t::TrackGenerator, track::Track)
 
         segment = Segment(xi, xo, norm(xi - xo), element)
         push!(track.segments, segment)
+
+        # actualizo el inicio
+        xp .= xo
+        xp += tiny_step * SVector{2,Float64}(cos(ϕ), sin(ϕ))
 
         prev_element = element
 
@@ -368,9 +396,9 @@ function compute_intersections(mesh, nodes, track, tiny_step, δ)
 
         x_int = intersection(track.n, ABC, parallel_side)
 
-        @show x1
-        @show x2
-        @show x_int
+        # @show x1
+        # @show x2
+        # @show x_int
 
         if parallel_side[] == 1
             parallel_found = 1
@@ -383,9 +411,9 @@ function compute_intersections(mesh, nodes, track, tiny_step, δ)
         end
     end
 
-    @show n_int
-    @show int_points
-    @show parallel_side[]
+    # @show n_int
+    # @show int_points
+    # @show parallel_side[]
 
     # ahora analizamos en que situacion caimos
     if n_int == 3 || n_int == 4
@@ -416,6 +444,8 @@ function compute_intersections(mesh, nodes, track, tiny_step, δ)
         x2 = int_points[2,:]
 
         if norm(x1 - x2) < tiny_step
+            # .... mmmm ... para mi aca tendria que incrementar el tiny step y buscar otro elemento
+            @show "estoy aca"
             return compute_intersections(mesh, nodes, track, tiny_step, 10*δ)
         else
             segment_points[1,:] .= int_points[1,:]
@@ -457,6 +487,15 @@ function point_in_segment(xa, xb, x)
     return isapprox(la + lb, ab)
 end
 
+# @recipe function plot(tracks_by_uid::Vector{Track})
+
+#     RayTracing.plot(tracks_by_uid[1].segments)
+#     for track in tracks_by_uid
+#         RayTracing.plot(track.segments)
+#     end
+
+# end
+
 @recipe function plot(segments::Vector{Segment})
 
     l = length(segments)
@@ -482,7 +521,7 @@ end
     return (x, y)
 end
 
-@recipe function plot(mesh::Mesh, a, b)
+@recipe function plot(mesh::Mesh)
 
     @unpack cell_nodes, model = mesh
     grid = get_grid(model)
@@ -492,24 +531,31 @@ end
     nc = length(cell_nodes)
     nn = all(l -> isequal(l, length(cell_nodes[1])), length.(cell_nodes)) ? length(cell_nodes[1]) : error("error")
 
-    x = Matrix{Float64}(undef, nn, nc) # TODO: compute Float64
-    y = Matrix{Float64}(undef, nn, nc)
+    x = Matrix{Float64}(undef, nn + 1, nc) # TODO: compute Float64
+    y = Matrix{Float64}(undef, nn + 1, nc)
 
     for (i, nodes_ids) in enumerate(cell_nodes)
-        x[1, i] = nodes[nodes_ids[1]][1]
-        x[2, i] = nodes[nodes_ids[2]][1]
-        x[3, i] = nodes[nodes_ids[3]][1]
-        y[1, i] = nodes[nodes_ids[1]][2]
-        y[2, i] = nodes[nodes_ids[2]][2]
-        y[3, i] = nodes[nodes_ids[3]][2]
-    end
+        # x[1, i] = nodes[nodes_ids[1]][1]
+        # x[2, i] = nodes[nodes_ids[2]][1]
+        # x[3, i] = nodes[nodes_ids[3]][1]
+        # y[1, i] = nodes[nodes_ids[1]][2]
+        # y[2, i] = nodes[nodes_ids[2]][2]
+        # y[3, i] = nodes[nodes_ids[3]][2]
 
+        for (j, node_id) in enumerate(nodes_ids)
+            x[j, i] = nodes[node_id][1]
+            y[j, i] = nodes[node_id][2]
+        end
+        # TODO: esto lo puedo mejorar
+        x[nn + 1, i] = nodes[nodes_ids[1]][1]
+        y[nn + 1, i] = nodes[nodes_ids[1]][2]
+    end
 
     # analizar cuales van con --> y con := (una fuerza seguro y la otra no)
     linecolor   --> :black
     seriestype  :=  :path
     # markershape --> :circle
-    linewidth   --> 0.3
+    linewidth   --> 0.2
     legend      --> false
     border      := :none
 
