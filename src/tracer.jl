@@ -1,4 +1,9 @@
 
+"""
+    TrackGenerator{M<:Mesh,Q<:AzimuthalQuadrature,T<:Real}
+
+This is the main structure of the library, which holds the information of the ray tracing.
+"""
 struct TrackGenerator{M<:Mesh,Q<:AzimuthalQuadrature,T<:Real}
     mesh::M
 
@@ -28,10 +33,25 @@ function show(io::IO, t::TrackGenerator{M,Q,T}) where {M,Q,T}
 end
 
 # estas ver donde las mandamos
-xorigin(n_tracks_x, i, j) = j <= n_tracks_x[i]
+xorigin(n_tracks_x, i, j) = j <= n_tracks_x[i] # name: origins_in_x
 yorigin(n_tracks_x, i, j) = !xorigin(n_tracks_x, i, j)
 
-function TrackGenerator(model, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_volumes=false) where {T<:Real}
+"""
+    TrackGenerator(
+        model::UnstructuredDiscreteModel, n_azim::Int, δ::T;
+        tiny_step::T=1e-8, correct_volumes=false
+    ) where {T<:Real}
+
+Initialize a [`TrackGenerator`](@ref) using an [`UnstructuredDiscreteModel`](@ref) which
+holds mesh related information, the number of azimuthal angles `n_azim` and the azimuthal
+spacing `δ`. The optional attributes are `tiny_step`, which is used in the track's
+segmentation routine, and `correct_volumes`, which allows for cell volume correction since
+the ray tracing algorithm yields to approximate volumes.
+"""
+function TrackGenerator(
+    model::UnstructuredDiscreteModel, n_azim::Int, δ::T;
+    tiny_step::T=1e-8, correct_volumes=false
+) where {T<:Real}
 
     n_azim > 0 || throw(DomainError(n_azim, "number of azimuthal angles must be > 0."))
     iszero(rem(n_azim, 4)) || throw(DomainError(n_azim, "number of azimuthal angles must " *
@@ -81,10 +101,18 @@ function TrackGenerator(model, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_vo
     )
 end
 
+"""
+    trace!(t::TrackGenerator)
+
+Computes and fills both the azimuthal quadrature and cyclic tracks around the rectangular
+domain using the provided azimuthal angles and spacing when defining the [`TrackGenerator`](@ref)
+`t`.
+"""
 function trace!(t::TrackGenerator{M,Q,T}) where {M,Q,T}
     @unpack mesh, azimuthal_quadrature = t
     @unpack n_tracks_x, n_tracks_y, n_tracks = t
     @unpack tracks, tracks_by_uid = t
+    @unpack bbmin, bbmax = mesh
     @unpack n_azim_2, n_azim_4, δs, ϕs, ωₐ = azimuthal_quadrature
 
     # effective azimuthal spacings, used for some computations but not stored
@@ -109,7 +137,6 @@ function trace!(t::TrackGenerator{M,Q,T}) where {M,Q,T}
         δx[j] = δx[i]
         δy[j] = δy[i]
         δs[j] = δs[i]
-        ωₐ[j] = ωₐ[i]
     end
 
     # once we have computed all the azimuthal angles, compute weights
@@ -160,8 +187,8 @@ function trace!(t::TrackGenerator{M,Q,T}) where {M,Q,T}
 
             # compute distance and recalibrate coordinates
             ℓ = norm(xi - xo)
-            xi = xi + bounding_box.min
-            xo = xo + bounding_box.min
+            xi = xi + bbmin
+            xo = xo + bbmin
 
             n = line_general_equation(xi, xo)
             segments = Vector{Segment}(undef, 0)
@@ -180,68 +207,69 @@ function trace!(t::TrackGenerator{M,Q,T}) where {M,Q,T}
     return t
 end
 
+"""
+    segmentize!(t::TrackGenerator)
+
+Segmentize tracks. This function call is intended to be done after calling `[trace!]`(@ref).
+"""
 function segmentize!(t::TrackGenerator)
     @unpack tracks_by_uid, tiny_step = t
     for track in tracks_by_uid
-        empty!(track.segments)
-        segmentize_track!(t, track)
+        _segmentize_track!(t, track)
     end
     return t
 end
 
 const MAX_ITER = 100_000
 
-function segmentize_track!(t::TrackGenerator, track::Track)
+function _segmentize_track!(t::TrackGenerator, track::Track, k=5)
     @unpack mesh, tiny_step = t
-    @unpack model, kdtree, bounding_box, cell_nodes = mesh
-    @unpack ϕ = track
+    @unpack ϕ, segments = track
 
-    xp = track.xi + tiny_step * Point2D(cos(ϕ), sin(ϕ))
+    # since we are going to compute them, empty!
+    empty!(segments)
+
+    # move a tiny step in ϕ direction to get inside the mesh
+    xp = move_step(track.xi, tiny_step, ϕ)
 
     i = 0
     element = -1
     prev_element = -1
-    while true
+    while i < MAX_ITER
 
         # find the element or cell where `xp` lies
         element = find_element(mesh, xp)
 
         # we might be at the boundary of the mesh
         if inboundary(mesh, xp, tiny_step)
-            if isempty(track.segments)
+            if isempty(segments)
                 # if we just started to segmentize, move a tiny step forward
-                xp = xp + tiny_step * Point2D(cos(ϕ), sin(ϕ))
+                xp = move_step(xp, tiny_step, ϕ)
                 continue
             else
-                # or we just finished
+                # or we just finished, so leave
                 break
             end
         end
 
-        # si volvio a retornar el mismo elemento, es porque me tengo que mover un poquito
+        # move a step if the new element is the same as the previous one
         if isequal(prev_element, element)
-            xp = xp + tiny_step * Point2D(cos(ϕ), sin(ϕ))
+            xp = move_step(xp, tiny_step, ϕ)
             continue
         end
 
-        # falta considerar que pasa si el factor de busqueda tenemos que ampliarlo, es decir
-        # me devolvio que no encontro elemento pero estoy dentro del dominio
+        # if we are inside the domain and `find_element` did not return an element, we might
+        # be dealing with a deformed mesh, so we might need to increase the knn search.
         if isequal(element, -1)
-            iter = 1
-            while isequal(element, -1) && iter < 5
-                factor *= factor
-                element = find_element(mesh, xp, factor)
-                iter += 1
+            element = find_element(mesh, xp, k)
+            if isequal(element, -1)
+                error("Try increasing `k`. If the problem persists, raise an issue, this " *
+                      "might be a case that hasn't been presented before.")
             end
-            if isequal(iter, 5)
-                error("no encontro el elemento, que paso?")
-            end
-            factor = 2
         end
 
-        # si llego aca y se supone que tengo el elemento correcto
-        nodes = cell_nodes[element]
-        segment_points = compute_intersections(mesh, nodes, track, tiny_step)
+        # compute intersections between track and the element
+        segment_points = intersections(mesh, element, track, tiny_step)
 
         # TODO: mirar el azim_id del track mejor
         if ϕ < π/2
@@ -266,30 +294,29 @@ function segmentize_track!(t::TrackGenerator, track::Track)
             end
         end
 
+        xi = convert(Point2D{Float64}, xi)
+        xo = convert(Point2D{Float64}, xo)
+
         segment = Segment(xi, xo, norm(xi - xo), element)
-        push!(track.segments, segment)
+        push!(segments, segment)
 
-        # actualizo el inicio
-        xp .= xo
-        xp += tiny_step * SVector{2,Float64}(cos(ϕ), sin(ϕ))
-
+        # update new starting point and previous element
+        xp = move_step(xo, tiny_step, ϕ)
         prev_element = element
 
-        # por seguridad por ahora
-        if i > MAX_ITER
-            break
-        end
-        i += 1
+        i += 1 # just for safety
     end
 
     return nothing
 end
 
-function compute_intersections(mesh, nodes, track, tiny_step)
+@inline move_step(x::Point2D, step::Real, ϕ::Real) = x + step * Point2D(cos(ϕ), sin(ϕ))
 
-    if δ > tiny_step
-        error("nos fuimos de tema")
-    end
+function intersections(mesh::Mesh, cell_id::Int, track::Track, tiny_step::Real)
+    @unpack model, cell_nodes = mesh
+
+    node_ids = cell_nodes[cell_id]
+    node_coordinates = get_node_coordinates(get_grid(model))
 
     int_points = MMatrix{4,2}(zeros(4,2))
     segment_points = MMatrix{2,2}(zeros(2,2))
@@ -300,14 +327,15 @@ function compute_intersections(mesh, nodes, track, tiny_step)
 
     parallel_side = MVector{1,Int64}(0)
 
-    for i in 1:length(nodes)
+    for i in 1:length(node_ids)
 
-        j = i == length(nodes) ? 1 : i+1
-        x1_id = nodes[i]
-        x2_id = nodes[j]
+        j = i == length(node_ids) ? 1 : i + 1
 
-        x1 = convert(SVector{2,Float64}, mesh.model.grid.node_coordinates[x1_id])
-        x2 = convert(SVector{2,Float64}, mesh.model.grid.node_coordinates[x2_id])
+        x1_id = node_ids[i]
+        x2_id = node_ids[j]
+
+        x1 = convert(Point2D{Float64}, node_coordinates[x1_id])
+        x2 = convert(Point2D{Float64}, node_coordinates[x2_id])
 
         ABC = line_general_equation(x1, x2)
 

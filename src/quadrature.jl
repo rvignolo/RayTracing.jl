@@ -7,7 +7,7 @@ struct Quadrature{A<:AzimuthalQuadrature,P<:PolarQuadrature,T<:Real}
     ω::Matrix{T}
 end
 
-function Quadrature(azimuthal::AzimuthalQuadrature{T}, polar::PolarQuadrature{N,T}, i) where {N,T}
+function Quadrature(azimuthal::AzimuthalQuadrature{T}, polar::PolarQuadrature{N,T}) where {N,T}
     @unpack n_azim_2, δs, ωₐ = azimuthal
     @unpack sinθs, ωₚ = polar
     n_polar_2 = npolar2(polar)

@@ -84,11 +84,8 @@ Checks if a point `x` lies in the boundary of the `mesh` with certain absolute t
 """
 function inboundary(mesh::Mesh, x::Point2D, atol::Real=0)
     @unpack bbmin, bbmax = mesh
-    return
-        isapprox(x[1], bbmax[1], atol=atol) ||
-        isapprox(x[1], bbmin[1], atol=atol) ||
-        isapprox(x[2], bbmax[2], atol=atol) ||
-        isapprox(x[2], bbmin[2], atol=atol)
+    return isapprox(x[1], bbmax[1], atol=atol) || isapprox(x[1], bbmin[1], atol=atol) ||
+           isapprox(x[2], bbmax[2], atol=atol) || isapprox(x[2], bbmin[2], atol=atol)
 end
 
 """
@@ -97,7 +94,7 @@ end
 Finds the cell or element of the `mesh` that contains a given point `x` by searching nodes
 and elements using nearest neighbor searches.
 """
-function find_element(mesh::Mesh, x, k::Int=2)
+function find_element(mesh::Mesh, x::Point2D, k::Int=2)
     @unpack model, kdtree, node_cells, cell_nodes = mesh
 
     # get the nearest node id closest to `x`
@@ -117,7 +114,7 @@ function find_element(mesh::Mesh, x, k::Int=2)
     # the mesh might be deformed, i.e. the cells that contain the nearest node do not
     # contain the point `x`. In that case, we need to search for more nodes. We could either
     # use `inrange` or `knn` for this purpose.
-    nn_ids, nn_distances = knn(kdtree, x, k, true, i -> isequal(i, nn_id))
+    nn_ids, nn_distances = knn(kdtree, x, k, true, i -> isequal(i, nn_id)) # TODO: cache!
     for node_id in nn_ids
         cell_ids = node_cells[node_id]
         for cell_id in cell_ids
@@ -143,16 +140,18 @@ function find_element(mesh::Mesh, x, k::Int=2)
 end
 
 # Use dispatch once I get the info about the element type using Gridap topology.
-point_in_element(mesh, node_ids, x) = point_in_triangle(mesh, node_ids, x)
+point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int}, x::Point2D) =
+    point_in_triangle(mesh, node_ids, x)
 
 """
     point_in_triangle(mesh::Mesh, node_ids, x) -> Bool
 
-Checks if whether a given point `x` lies inside the triangle given by its node coordinates
-ids `node_ids`.
+Checks if whether a given point `x` lies inside, the edge or corner of the triangle given by
+its node coordinates ids `node_ids`.
 """
-function point_in_triangle(mesh::Mesh, node_ids, x)
-    node_coordinates = get_node_coordinates(get_grid(mesh))
+function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int}, x::Point2D)
+    @unpack model = mesh
+    node_coordinates = get_node_coordinates(get_grid(model))
 
     x1, y1 = node_coordinates[node_ids[1]]
     x2, y2 = node_coordinates[node_ids[2]]
@@ -176,7 +175,7 @@ end
 Checks if whether a given point `x` lies inside the quadrangle given by its node coordinates
 ids `node_ids`.
 """
-function point_in_quadrangle(mesh::Mesh, node_ids, x)
+function point_in_quadrangle(mesh::Mesh, node_ids::AbstractVector{<:Int}, x::Point2D)
 
     # triangle node ids
     t_node_ids = @MVector zeros(3)

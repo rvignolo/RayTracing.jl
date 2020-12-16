@@ -4,13 +4,16 @@ struct Point2D{T} <: FieldVector{2,T}
     y::T
 end
 
-StaticArrays.similar_type(::Type{<:Point2D}, ::Type{T}, s::Size{(2,)}) where {T} = Point2D{T}
+Point2D(x, y) = Point2D(promote(x, y)...)
+
+StaticArrays.similar_type(::Type{<:Point2D}, ::Type{T}, ::Size{(2,)}) where {T} = Point2D{T}
+
+Base.convert(::Type{<:Point2D{T}}, arg::VectorValue{D}) where {D,T} = Point2D{T}(Tuple(arg))
 
 struct Segment{I,O,E,T}
     xi::I
     xo::O
     ℓ::T
-    # τ::T
     element::E
 end
 
