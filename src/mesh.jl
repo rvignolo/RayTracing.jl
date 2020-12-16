@@ -1,20 +1,31 @@
+"""
+    Mesh
 
-struct Mesh{M,K,B,N,C}
+Holds mesh related attributes that are useful for the ray tracing algorithm, such as a
+`kdtree` for nodes searches, the mesh bounding box and a mapping between nodes and cells
+(`node_cells` and `cell_nodes`).
+"""
+struct Mesh{M,K,N,C,B}
     model::M
     kdtree::K
-    bounding_box::B
     node_cells::N
     cell_nodes::C
-    # last_chosen_element # cache
+    bbmin::B
+    bbmax::B
 end
 
-function Mesh(model)
+"""
+    Mesh(model::UnstructuredDiscreteModel)
+
+Builds a Mesh using data from a [`UnstructuredDiscreteModel`](@ref).
+"""
+function Mesh(model::UnstructuredDiscreteModel)
     grid = get_grid(model)
     kdtree = KDTree(grid)
-    bounding_box = BoundingBox(grid)
     node_cells = get_faces(get_grid_topology(model), 0, num_cell_dims(model))
     cell_nodes = grid.cell_nodes
-    return Mesh(model, kdtree, bounding_box, node_cells, cell_nodes)
+    bbmin, bbmax = bounding_box(grid)
+    return Mesh(model, kdtree, node_cells, cell_nodes, bbmin, bbmax)
 end
 
 """
@@ -28,24 +39,16 @@ function KDTree(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
     return KDTree(snodes)
 end
 
-struct BoundingBox{T}
-    min::T
-    max::T
-end
-
 """
-    BoundingBox(grid::UnstructuredGrid)
+    bounding_box(grid::UnstructuredGrid)
 
-Finds the bounding box of a unstructured `grid`.
+Returns the bounding box of an unstructured `grid`.
 """
-function BoundingBox(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
+function bounding_box(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
     nodes = get_node_coordinates(grid)
 
-    # N = length(eltype(nodes)) # Dp
-    # T = eltype(eltype(nodes)) # Tp
-
-    xmin = MVector{Dp,Tp}(zeros(Dp)) # Dc or Dp?
-    xmax = MVector{Dp,Tp}(zeros(Dp)) # Dc or Dp?
+    xmin = MVector{Dp,Tp}(zeros(Tp, Dp)) # Dc or Dp?
+    xmax = MVector{Dp,Tp}(zeros(Tp, Dp))
 
     for i in 1:Dp
         xs = getindex.(nodes, i)
@@ -53,84 +56,141 @@ function BoundingBox(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
         xmax[i] = max(xs...)
     end
 
-    bottomleft = convert(Point{Dp,Tp}, xmin)
-    topright = convert(Point{Dp,Tp}, xmax)
+    bottomleft = convert(Point2D{Tp}, xmin)
+    topright = convert(Point2D{Tp}, xmax)
 
-    return BoundingBox(bottomleft, topright)
+    return bottomleft, topright
 end
 
-width(b::BoundingBox) = b.max[1] - b.min[1]
-height(b::BoundingBox) = b.max[2] - b.min[2]
+"""
+    width(mesh::Mesh)
 
-# retorna el elemento de la malla al que pertenece el punto en el espacio `x`
-# mejor: function find_element(mesh, x) con mesh.kdtree y mesh.grid inside (also last_chosen_element)
-# function find_element(grid, kdtree, )
-function find_element(mesh, x, factor=2)
+Returns the width of the rectangular mesh.
+"""
+@inline width(mesh::Mesh) = mesh.bbmax[1] - mesh.bbmin[1]
+
+"""
+    width(mesh::Mesh)
+
+Returns the height of the rectangular mesh.
+"""
+@inline height(mesh::Mesh) = mesh.bbmax[2] - mesh.bbmin[2]
+
+"""
+    inboundary(mesh::Mesh, x::Point2D, [atol::Real=0]) -> Bool
+
+Checks if a point `x` lies in the boundary of the `mesh` with certain absolute tolerance
+`atol`.
+"""
+function inboundary(mesh::Mesh, x::Point2D, atol::Real=0)
+    @unpack bbmin, bbmax = mesh
+    return
+        isapprox(x[1], bbmax[1], atol=atol) ||
+        isapprox(x[1], bbmin[1], atol=atol) ||
+        isapprox(x[2], bbmax[2], atol=atol) ||
+        isapprox(x[2], bbmin[2], atol=atol)
+end
+
+"""
+    find_element(mesh::Mesh, x::Point, k::Int=2)
+
+Finds the cell or element of the `mesh` that contains a given point `x` by searching nodes
+and elements using nearest neighbor searches.
+"""
+function find_element(mesh::Mesh, x, k::Int=2)
     @unpack model, kdtree, node_cells, cell_nodes = mesh
-    grid = get_grid(model)
 
-    # 1. test last chosen element (look cache)
-    # element = mesh.last_chosen_element
-    # if isassigned(element) end
-
-    # ahora si arrancamos
-    # 1. find nearest node
+    # get the nearest node id closest to `x`
     nn_id, nn_distance = nn(kdtree, x)
 
-    # 2. dada el id del nearest node, tomamos las cells que tienen ese nodo
-    # TODO: se puede hacer esto sin allocar?
-    cells = node_cells[nn_id]
+    # get the associated cell ids that contain the nearest node
+    cell_ids = node_cells[nn_id]
 
-    # mirando cada cell index, checkequemos si alguna contiene al punto en el espacio
-    for cell in cells
-        if point_in_element(grid, cell_nodes[cell], x)
-            return cell
+    # loop over those cells until we find the one that contains the point `x`
+    for cell_id in cell_ids
+        node_ids = cell_nodes[cell_id]
+        if point_in_element(mesh, node_ids, x)
+            return cell_id
         end
     end
 
-    # si la malla esta deformada, i.e. los elementos que pertenecen al nodo mas cercano no
-    # contienen al punto, tenemos que ampliar la busqueda
-    # TODO: en lugar de incrementar el radio de busqueda, podriamos usar knn, y recorrer
-    # mas nodos. Esto me parece una mejor idea...
-    nns_ids = inrange(kdtree, x, factor * nn_distance, true)
-    for node_id in nns_ids
-        cells = node_cells[node_id]
-        for cell in cells
-            if point_in_element(grid, cell_nodes[cell], x)
-                return cell
+    # the mesh might be deformed, i.e. the cells that contain the nearest node do not
+    # contain the point `x`. In that case, we need to search for more nodes. We could either
+    # use `inrange` or `knn` for this purpose.
+    nn_ids, nn_distances = knn(kdtree, x, k, true, i -> isequal(i, nn_id))
+    for node_id in nn_ids
+        cell_ids = node_cells[node_id]
+        for cell_id in cell_ids
+            node_ids = cell_nodes[cell_id]
+            if point_in_element(mesh, node_ids, x)
+                return cell_id
             end
         end
     end
 
+    # nn_ids = inrange(kdtree, x, factor * nn_distance, true)
+    # for node_id in nn_ids
+    #     cell_ids = node_cells[node_id]
+    #     for cell_id in cell_ids
+    #         node_ids = cell_nodes[cell_id]
+    #         if point_in_element(grid, node_ids, x)
+    #             return cell_id
+    #         end
+    #     end
+    # end
+
     return -1
 end
 
-# por ahora asumimos que son triangles siempre
-point_in_element(grid, cell_nodes, x) = point_in_triangle(grid, cell_nodes, x)
+# Use dispatch once I get the info about the element type using Gridap topology.
+point_in_element(mesh, node_ids, x) = point_in_triangle(mesh, node_ids, x)
 
-function point_in_triangle(grid, nodes, x)
+"""
+    point_in_triangle(mesh::Mesh, node_ids, x) -> Bool
 
-    node_coordinates = get_node_coordinates(grid)
+Checks if whether a given point `x` lies inside the triangle given by its node coordinates
+ids `node_ids`.
+"""
+function point_in_triangle(mesh::Mesh, node_ids, x)
+    node_coordinates = get_node_coordinates(get_grid(mesh))
 
-    x1, y1 = node_coordinates[nodes[1]]
-    x2, y2 = node_coordinates[nodes[2]]
-    x3, y3 = node_coordinates[nodes[3]]
+    x1, y1 = node_coordinates[node_ids[1]]
+    x2, y2 = node_coordinates[node_ids[2]]
+    x3, y3 = node_coordinates[node_ids[3]]
 
-    # TODO: this is a first approach, use linear LinearAlgebra.jl or LazySets.jl later
-    λ1 = ((y2 - y3) * (x[1] - x3) + (x3 - x2 ) * (x[2] - y3)) / ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1- y3))
-    λ2 = ((y3 - y1) * (x[1] - x3) + (x1 - x3 ) * (x[2] - y3)) / ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1- y3))
-    λ3 = 1 - λ1 - λ2
+    R = @SMatrix [x1 x2 x3; y1 y2 y3; 1 1 1]
+    r = @SVector [x[1], x[2], 1]
+    λ = R \ r
 
-    # @show x
-    # @show λ1, λ2, λ3
-
-    # devuelve true si cae dentro o en la superficie del triangulo
-    T = typeof(λ1)
-    tol = sqrt(eps(T)) # por ahi es muy chica o muy grande... ver de incrementarla si es necesario
+    # return true if it lies in or on the triangle
+    T = eltype(λ)
+    tol = sqrt(eps(T))
     domain = ClosedInterval{T}(zero(T) - tol, one(T) + tol)
-    # domain = OpenInterval{T}(zero(T) - tol, one(T) + tol) # devuelve true solo si es dentro
+    return λ[1] in domain && λ[2] in domain && λ[3] in domain
+    # return all(in.(λ, Ref(domain))) # allocates
+end
 
-    # @show λ1 in domain && λ2 in domain && λ3 in domain
+"""
+    point_in_quadrangle(mesh::Mesh, node_ids, x) -> Bool
 
-    return λ1 in domain && λ2 in domain && λ3 in domain
+Checks if whether a given point `x` lies inside the quadrangle given by its node coordinates
+ids `node_ids`.
+"""
+function point_in_quadrangle(mesh::Mesh, node_ids, x)
+
+    # triangle node ids
+    t_node_ids = @MVector zeros(3)
+
+    # look on 4 triangles because we do not know the order of the nodes
+    for i in 1:4
+        for j in 1:3
+            k = mod1(i + j - 1, 4) # k = (i + j - 2) % 4 + 1, k = mod(i + j - 1, 1:4)
+            t_node_ids[j] = node_ids[k]
+        end
+        if point_in_triangle(mesh, t_node_ids, x)
+            return true
+        end
+    end
+
+    return false
 end

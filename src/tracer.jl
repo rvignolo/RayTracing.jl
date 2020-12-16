@@ -16,6 +16,21 @@ struct TrackGenerator{M<:Mesh,Q<:AzimuthalQuadrature,T<:Real}
     volumes::Vector{T}
 end
 
+function show(io::IO, t::TrackGenerator{M,Q,T}) where {M,Q,T}
+    @unpack azimuthal_quadrature, n_total_tracks, correct_volumes = t
+    @unpack n_azim_2, δs, ϕs = azimuthal_quadrature
+    # println(io, typeof(t))
+    println(io, "  Number of azimuthal angles in (0, π): ", n_azim_2)
+    println(io, "  Azimuthal angles in (0, π): ", round.(rad2deg.(ϕs), digits=2))
+    println(io, "  Effective azimuthal spacings: ", round.(δs, digits=3))
+    println(io, "  Total tracks: ", n_total_tracks)
+    print(io,   "  Correct volumes: ", correct_volumes)
+end
+
+# estas ver donde las mandamos
+xorigin(n_tracks_x, i, j) = j <= n_tracks_x[i]
+yorigin(n_tracks_x, i, j) = !xorigin(n_tracks_x, i, j)
+
 function TrackGenerator(model, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_volumes=false) where {T<:Real}
 
     n_azim > 0 || throw(DomainError(n_azim, "number of azimuthal angles must be > 0."))
@@ -25,8 +40,7 @@ function TrackGenerator(model, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_vo
 
     mesh = Mesh(model)
 
-    @unpack bounding_box = mesh
-    Δx, Δy = width(bounding_box), height(bounding_box)
+    Δx, Δy = width(mesh), height(mesh)
 
     azimuthal_quadrature = AzimuthalQuadrature(n_azim, δ)
 
@@ -67,19 +81,17 @@ function TrackGenerator(model, n_azim::Int, δ::T; tiny_step::T=1e-8, correct_vo
     )
 end
 
-function trace!(t::TrackGenerator)
+function trace!(t::TrackGenerator{M,Q,T}) where {M,Q,T}
     @unpack mesh, azimuthal_quadrature = t
     @unpack n_tracks_x, n_tracks_y, n_tracks = t
     @unpack tracks, tracks_by_uid = t
-    @unpack bounding_box = mesh
     @unpack n_azim_2, n_azim_4, δs, ϕs, ωₐ = azimuthal_quadrature
 
     # effective azimuthal spacings, used for some computations but not stored
-    T = eltype(δs)
     δx = Vector{T}(undef, n_azim_2)
     δy = Vector{T}(undef, n_azim_2)
 
-    Δx, Δy = width(bounding_box), height(bounding_box)
+    Δx, Δy = width(mesh), height(mesh)
 
     for i in right_dir(azimuthal_quadrature)
 
@@ -113,32 +125,32 @@ function trace!(t::TrackGenerator)
 
             if xorigin(n_tracks_x, i, j)
                 if points_right(azimuthal_quadrature, i)
-                    xi = Point{2,T}(δx[i] * (n_tracks_x[i] - j + 1 / 2), 0)
+                    xi = Point2D(δx[i] * (n_tracks_x[i] - j + 1 / 2), 0)
                 else
-                    xi = Point{2,T}(δx[i] * (j - 1 / 2), 0)
+                    xi = Point2D(δx[i] * (j - 1 / 2), 0)
                 end
             else
                 if points_right(azimuthal_quadrature, i)
-                    xi = Point{2,T}(0, δy[i] * (j - n_tracks_x[i] - 1 / 2))
+                    xi = Point2D(0, δy[i] * (j - n_tracks_x[i] - 1 / 2))
                 else
-                    xi = Point{2,T}(Δx, δy[i] * (j - n_tracks_x[i] - 1 / 2))
+                    xi = Point2D(Δx, δy[i] * (j - n_tracks_x[i] - 1 / 2))
                 end
             end
 
             # it can exit at y = Δy regardless if it points to the right or left
             m = tan(ϕ)
-            xo = Point{2,T}(xi[1] - (xi[2] - Δy) / m, Δy)
+            xo = Point2D(xi[1] - (xi[2] - Δy) / m, Δy)
 
             # keep going if `xo` is not an exit point
             if !(0 <= xo[1] <= Δx)
 
                 # it can exit at x = Δx if it points to the right
                 if i <= n_azim_4
-                    xo = Point{2,T}(Δx, xi[2] + m * (Δx - xi[1]))
+                    xo = Point2D(Δx, xi[2] + m * (Δx - xi[1]))
 
                 # or it can exit at x = 0 if it points to the left
                 else
-                    xo = Point{2,T}(0, xi[2] - m * xi[1])
+                    xo = Point2D(0, xi[2] - m * xi[1])
                 end
 
                 if !(0 <= xo[2] <= Δy)
@@ -158,6 +170,7 @@ function trace!(t::TrackGenerator)
         end
     end
 
+    # useful pointers for MoC solver
     uid = 1
     for i in 1:n_azim_2, j in 1:n_tracks[i]
         tracks_by_uid[uid] = tracks[i][j]
@@ -166,76 +179,6 @@ function trace!(t::TrackGenerator)
 
     return t
 end
-
-xorigin(n_tracks_x, i, j) = j <= n_tracks_x[i]
-yorigin(n_tracks_x, i, j) = !xorigin(n_tracks_x, i, j)
-
-# TODO: we could just use LinearAlgebra.jl or LazySet.jl
-function line_general_equation(xi, xo)
-    A = xi[2] - xo[2]
-    B = xo[1] - xi[1]
-    C = xi[1] * xo[2] - xo[1] * xi[2] # esto pareciera ser un determinante
-    ABC = SVector(A, B, C) # por ahi tambien podria ser un Point...
-    n = ABC / norm(ABC)
-    return n
-end
-
-function show(io::IO, t::TrackGenerator{M,Q,T}) where {M,Q,T}
-    @unpack azimuthal_quadrature, n_total_tracks, correct_volumes = t
-    @unpack n_azim_2, δs, ϕs = azimuthal_quadrature
-    # println(io, typeof(t))
-    println(io, "  Number of azimuthal angles in (0, π): ", n_azim_2)
-    println(io, "  Azimuthal angles in (0, π): ", round.(rad2deg.(ϕs), digits=2))
-    println(io, "  Effective azimuthal spacings: ", round.(δs, digits=3))
-    println(io, "  Total tracks: ", n_total_tracks)
-    print(io,   "  Correct volumes: ", correct_volumes)
-end
-
-@recipe function plot(t::TrackGenerator{M,Q,T}; azim_idx=nothing, uid=nothing) where {M,Q,T}
-    @unpack tracks_by_uid, n_total_tracks = t
-
-    x = Matrix{T}(undef, 2, n_total_tracks)
-    y = Matrix{T}(undef, 2, n_total_tracks)
-
-    for j in 1:n_total_tracks
-        track = tracks_by_uid[j]
-        x[1, j] = track.xi[1]
-        x[2, j] = track.xo[1]
-        y[1, j] = track.xi[2]
-        y[2, j] = track.xo[2]
-    end
-
-    # analizar cuales van con --> y con := (una fuerza seguro y la otra no)
-    # linecolor   --> :black
-    seriestype  :=  :path
-    # markershape --> :circle
-    linewidth   --> 0.20
-    legend      --> false
-    border      := :none
-
-    return (x, y)
-end
-
-
-#=
-using LazySets
-# generate `point`, a vector, and `nodes`, a 2d array or vector of vectors
-element = VPolygon(nodes)
-println(point in element)
-# Also, since you already know that your elements are convex sets and there is no redundance
-# in the list of nodes, you can speed up the instantiation by bypassing the convex hull
-# algorithm
-element = VPolygon(nodes; apply_convex_hull=false)
-
-# oh, an another question: is it possible to compute the intersection between two lines with
-# LazySets.jl? Yes, it looks like the Line, Line2D, or LineSegment types will do what you
-# need To find the intersection there is a lazy version, the Intersection type, and a
-# concrete operation, the intersection function. See
-# https://juliareach.github.io/LazySets.jl/dev/lib/binary_functions/#LazySets.intersection-Union{Tuple{N},%20Tuple{Line2D{N,VN}%20where%20VN%3C:AbstractArray{N,1},Line2D{N,VN}%20where%20VN%3C:AbstractArray{N,1}}}%20where%20N%3C:Real
-# Disclaimer, I don't know anything about what this package does internally, I'm just a
-# happy user for a one-off application where performance is not an issue
-
-=#
 
 function segmentize!(t::TrackGenerator)
     @unpack tracks_by_uid, tiny_step = t
@@ -253,57 +196,31 @@ function segmentize_track!(t::TrackGenerator, track::Track)
     @unpack model, kdtree, bounding_box, cell_nodes = mesh
     @unpack ϕ = track
 
-    # TODO: compute type T
-    x0 = track.xi + tiny_step * Point{2,Float64}(cos(ϕ), sin(ϕ))
-    xp = convert(MVector{2,Float64}, x0)
-
-    factor = 2
-
-    δ = 1e-16 # por ahora no lo uso
-
-    bbmax_x = bounding_box.max[1]
-    bbmax_y = bounding_box.max[2]
-    bbmin_x = bounding_box.min[1]
-    bbmin_y = bounding_box.min[1]
+    xp = track.xi + tiny_step * Point2D(cos(ϕ), sin(ϕ))
 
     i = 0
     element = -1
     prev_element = -1
     while true
 
+        # find the element or cell where `xp` lies
         element = find_element(mesh, xp)
 
-        # @show element
-
-        # si estamos arafue y nos retornaron un elemento (esto hace wasora, yo no), pero a
-        # mi si me retorna el -1, por lo que esta bueno ver esto. mas adelante, si me dieron
-        # -1 y estoy dentro del dominio, es porque la malla esta deformada.
-
-        # puede pasar que este cerca de la bounding box
-        if isapprox(xp[1], bbmax_x, atol=tiny_step) || isapprox(xp[1], bbmin_x, atol=tiny_step) || isapprox(xp[2], bbmax_y, atol=tiny_step) || isapprox(xp[2], bbmin_y, atol=tiny_step)
-
+        # we might be at the boundary of the mesh
+        if inboundary(mesh, xp, tiny_step)
             if isempty(track.segments)
-                # puede estar recien comenzando a segmentar y en ese caso nos movemos un
-                # poquito mas y continuamos
-                xp += tiny_step * SVector{2,Float64}(cos(ϕ), sin(ϕ))
+                # if we just started to segmentize, move a tiny step forward
+                xp = xp + tiny_step * Point2D(cos(ϕ), sin(ϕ))
                 continue
             else
-                # o puede haber terminado de segmentar y en ese caso nos vamos
+                # or we just finished
                 break
             end
         end
 
-        # if xp[1] >= bounding_box.max[1] || xp[1] <= bounding_box.min[1] ||
-        #    xp[2] >= bounding_box.max[2] || xp[2] <= bounding_box.min[2]
-        #     break
-        # end
-
-        # en teoria, si estoy dentro del dominio y el track coincide con un lado de un
-        # triangulo, igual me retorna un elemento, por eso no lo estoy considerando
-
         # si volvio a retornar el mismo elemento, es porque me tengo que mover un poquito
         if isequal(prev_element, element)
-            xp += tiny_step * SVector{2,Float64}(cos(ϕ), sin(ϕ))
+            xp = xp + tiny_step * Point2D(cos(ϕ), sin(ϕ))
             continue
         end
 
@@ -324,7 +241,7 @@ function segmentize_track!(t::TrackGenerator, track::Track)
 
         # si llego aca y se supone que tengo el elemento correcto
         nodes = cell_nodes[element]
-        segment_points = compute_intersections(mesh, nodes, track, tiny_step, δ)
+        segment_points = compute_intersections(mesh, nodes, track, tiny_step)
 
         # TODO: mirar el azim_id del track mejor
         if ϕ < π/2
@@ -365,10 +282,10 @@ function segmentize_track!(t::TrackGenerator, track::Track)
         i += 1
     end
 
-
+    return nothing
 end
 
-function compute_intersections(mesh, nodes, track, tiny_step, δ)
+function compute_intersections(mesh, nodes, track, tiny_step)
 
     if δ > tiny_step
         error("nos fuimos de tema")
@@ -446,14 +363,14 @@ function compute_intersections(mesh, nodes, track, tiny_step, δ)
         if norm(x1 - x2) < tiny_step
             # .... mmmm ... para mi aca tendria que incrementar el tiny step y buscar otro elemento
             @show "estoy aca"
-            return compute_intersections(mesh, nodes, track, tiny_step, 10*δ)
+            return compute_intersections(mesh, nodes, track, tiny_step)
         else
             segment_points[1,:] .= int_points[1,:]
             segment_points[2,:] .= int_points[2,:]
             return segment_points
         end
     elseif n_int == 1 || n_int == 0
-        return compute_intersections(mesh, nodes, track, tiny_step, 10*δ)
+        return compute_intersections(mesh, nodes, track, tiny_step)
     end
 end
 
@@ -476,6 +393,16 @@ function intersection(ABC_1, ABC_2, parallels)
     return SVector(x_int, y_int)
 end
 
+# TODO: we could just use LinearAlgebra.jl or LazySet.jl
+function line_general_equation(xi, xo)
+    A = xi[2] - xo[2]
+    B = xo[1] - xi[1]
+    C = xi[1] * xo[2] - xo[1] * xi[2] # esto pareciera ser un determinante
+    ABC = SVector(A, B, C)
+    n = ABC / norm(ABC)
+    return n
+end
+
 # otra forma seria: chequear que el punto cumpla la ecuacion de la recta + inbounds, es
 # decir, ya tengo el ABC del segmento, lo uso con el punto x, y luego me fijo que las
 # coordenadas de x e y entren dentro del dominio usando inbounds, pero ahi me aparecen
@@ -485,79 +412,4 @@ function point_in_segment(xa, xb, x)
     lb = norm(xb - x)
     ab = norm(xa - xb)
     return isapprox(la + lb, ab)
-end
-
-# @recipe function plot(tracks_by_uid::Vector{Track})
-
-#     RayTracing.plot(tracks_by_uid[1].segments)
-#     for track in tracks_by_uid
-#         RayTracing.plot(track.segments)
-#     end
-
-# end
-
-@recipe function plot(segments::Vector{Segment})
-
-    l = length(segments)
-
-    x = Matrix{Float64}(undef, 2, l) # TODO: compute Float64
-    y = Matrix{Float64}(undef, 2, l)
-
-    for (i, segment) in enumerate(segments)
-        x[1, i] = segment.xi[1]
-        x[2, i] = segment.xo[1]
-        y[1, i] = segment.xi[2]
-        y[2, i] = segment.xo[2]
-    end
-
-    # analizar cuales van con --> y con := (una fuerza seguro y la otra no)
-    # linecolor   --> :black
-    seriestype  :=  :path
-    # markershape --> :circle
-    linewidth   --> 0.20
-    legend      --> false
-    border      := :none
-
-    return (x, y)
-end
-
-@recipe function plot(mesh::Mesh)
-
-    @unpack cell_nodes, model = mesh
-    grid = get_grid(model)
-    nodes = get_node_coordinates(grid)
-
-    # number of cells and number of nodes per cell
-    nc = length(cell_nodes)
-    nn = all(l -> isequal(l, length(cell_nodes[1])), length.(cell_nodes)) ? length(cell_nodes[1]) : error("error")
-
-    x = Matrix{Float64}(undef, nn + 1, nc) # TODO: compute Float64
-    y = Matrix{Float64}(undef, nn + 1, nc)
-
-    for (i, nodes_ids) in enumerate(cell_nodes)
-        # x[1, i] = nodes[nodes_ids[1]][1]
-        # x[2, i] = nodes[nodes_ids[2]][1]
-        # x[3, i] = nodes[nodes_ids[3]][1]
-        # y[1, i] = nodes[nodes_ids[1]][2]
-        # y[2, i] = nodes[nodes_ids[2]][2]
-        # y[3, i] = nodes[nodes_ids[3]][2]
-
-        for (j, node_id) in enumerate(nodes_ids)
-            x[j, i] = nodes[node_id][1]
-            y[j, i] = nodes[node_id][2]
-        end
-        # TODO: esto lo puedo mejorar
-        x[nn + 1, i] = nodes[nodes_ids[1]][1]
-        y[nn + 1, i] = nodes[nodes_ids[1]][2]
-    end
-
-    # analizar cuales van con --> y con := (una fuerza seguro y la otra no)
-    linecolor   --> :black
-    seriestype  :=  :path
-    # markershape --> :circle
-    linewidth   --> 0.2
-    legend      --> false
-    border      := :none
-
-    return (x, y)
 end

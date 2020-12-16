@@ -19,9 +19,9 @@ end
 const _TL_NΘ_ = (2, 4, 6)
 const _GL_NΘ_ = (2, 3, 4, 6, 8, 10, 12)
 
-# this can be called directly if type stability is needed
 function TabuchiYamamoto(n_polar::Val{N}, T::Type{<:Real}=Float64) where {N}
-    N in _TL_NΘ_ || throw(DomainError(N, "number of polar angles for TabuchiYamamoto must be in $(string(_TL_NΘ_))."))
+    N in _TL_NΘ_ || throw(DomainError(N, "number of polar angles for TabuchiYamamoto must" *
+                                         " be in $(string(_TL_NΘ_))."))
 
     sinθs, θs, ωₚ = ntuple(_ -> Vector{T}(undef, N), 3)
 
