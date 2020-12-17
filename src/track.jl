@@ -22,7 +22,7 @@ struct Track{T<:Real,I,O,S}
     xi::I
     xo::O
     ℓ::T
-    n::S
+    ABC::S
     segments::Vector{Segment}
 
     # we will eventually need the following fields fields:

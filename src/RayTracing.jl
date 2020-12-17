@@ -8,7 +8,6 @@ using LinearAlgebra
 using NearestNeighbors
 using Gridap: VectorValue, num_cells, get_grid
 using Gridap.Geometry: UnstructuredDiscreteModel, UnstructuredGrid, get_grid_topology
-# using GriadpGmsh # ver de usar dev GriadpGmsh para que esto funque?
 
 using Gridap.ReferenceFEs: get_faces, get_node_coordinates, num_cell_dims
 

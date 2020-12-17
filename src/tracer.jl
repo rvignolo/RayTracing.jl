@@ -190,10 +190,10 @@ function trace!(t::TrackGenerator{M,Q,T}) where {M,Q,T}
             xi = xi + bbmin
             xo = xo + bbmin
 
-            n = line_general_equation(xi, xo)
+            ABC = general_form(xi, xo)
             segments = Vector{Segment}(undef, 0)
 
-            tracks[i][j] = Track(ϕ, xi, xo, ℓ, n, segments)
+            tracks[i][j] = Track(ϕ, xi, xo, ℓ, ABC, segments)
         end
     end
 
@@ -213,14 +213,14 @@ end
 Segmentize tracks. This function call is intended to be done after calling `[trace!]`(@ref).
 """
 function segmentize!(t::TrackGenerator)
-    @unpack tracks_by_uid, tiny_step = t
+    @unpack tracks_by_uid = t
     for track in tracks_by_uid
         _segmentize_track!(t, track)
     end
     return t
 end
 
-const MAX_ITER = 100_000
+const MAX_ITER = 10_000
 
 function _segmentize_track!(t::TrackGenerator, track::Track, k=5)
     @unpack mesh, tiny_step = t
@@ -230,7 +230,7 @@ function _segmentize_track!(t::TrackGenerator, track::Track, k=5)
     empty!(segments)
 
     # move a tiny step in ϕ direction to get inside the mesh
-    xp = move_step(track.xi, tiny_step, ϕ)
+    xp = advance_step(track.xi, tiny_step, ϕ)
 
     i = 0
     element = -1
@@ -244,7 +244,7 @@ function _segmentize_track!(t::TrackGenerator, track::Track, k=5)
         if inboundary(mesh, xp, tiny_step)
             if isempty(segments)
                 # if we just started to segmentize, move a tiny step forward
-                xp = move_step(xp, tiny_step, ϕ)
+                xp = advance_step(xp, tiny_step, ϕ)
                 continue
             else
                 # or we just finished, so leave
@@ -254,7 +254,7 @@ function _segmentize_track!(t::TrackGenerator, track::Track, k=5)
 
         # move a step if the new element is the same as the previous one
         if isequal(prev_element, element)
-            xp = move_step(xp, tiny_step, ϕ)
+            xp = advance_step(xp, tiny_step, ϕ)
             continue
         end
 
@@ -269,39 +269,13 @@ function _segmentize_track!(t::TrackGenerator, track::Track, k=5)
         end
 
         # compute intersections between track and the element
-        segment_points = intersections(mesh, element, track, tiny_step)
-
-        # TODO: mirar el azim_id del track mejor
-        if ϕ < π/2
-            if segment_points[1,1] < segment_points[2,1]
-                # TODO: son MVector!
-                xi = segment_points[1,:]
-                xo = segment_points[2,:]
-            else
-                # TODO: son MVector!
-                xi = segment_points[2,:]
-                xo = segment_points[1,:]
-            end
-        else
-            if segment_points[1,1] > segment_points[2,1]
-                # TODO: son MVector!
-                xi = segment_points[1,:]
-                xo = segment_points[2,:]
-            else
-                # TODO: son MVector!
-                xi = segment_points[2,:]
-                xo = segment_points[1,:]
-            end
-        end
-
-        xi = convert(Point2D{Float64}, xi)
-        xo = convert(Point2D{Float64}, xo)
+        xi, xo = intersections(mesh, element, track)
 
         segment = Segment(xi, xo, norm(xi - xo), element)
         push!(segments, segment)
 
         # update new starting point and previous element
-        xp = move_step(xo, tiny_step, ϕ)
+        xp = advance_step(xo, tiny_step, ϕ)
         prev_element = element
 
         i += 1 # just for safety
@@ -310,134 +284,167 @@ function _segmentize_track!(t::TrackGenerator, track::Track, k=5)
     return nothing
 end
 
-@inline move_step(x::Point2D, step::Real, ϕ::Real) = x + step * Point2D(cos(ϕ), sin(ϕ))
+@inline advance_step(x::Point2D, step::Real, ϕ::Real) = x + step * Point2D(cos(ϕ), sin(ϕ))
 
-function intersections(mesh::Mesh, cell_id::Int, track::Track, tiny_step::Real)
+# We could use LazySets.jl for some of this particular function but it seems slow! Test it.
+"""
+    intersections(mesh::Mesh, cell_id::Int, track::Track, tiny_step::Real)
+
+Computes the entry and exit points of a given `track` that is known to cross element with id
+`cell_id`.
+"""
+function intersections(mesh::Mesh, cell_id::Int, track::Track{T}) where {T}
     @unpack model, cell_nodes = mesh
 
-    node_ids = cell_nodes[cell_id]
     node_coordinates = get_node_coordinates(get_grid(model))
+    node_ids = cell_nodes[cell_id]
 
-    int_points = MMatrix{4,2}(zeros(4,2))
-    segment_points = MMatrix{2,2}(zeros(2,2))
+    int_points = MVector{4,Point2D{T}}(
+        Point2D(0, 0), Point2D(0, 0), Point2D(0, 0), Point2D(0, 0)
+    )
 
     n_int = 0
-
-    parallel_found = 0
-
-    parallel_side = MVector{1,Int64}(0)
-
+    parallel_found = false
     for i in 1:length(node_ids)
 
         j = i == length(node_ids) ? 1 : i + 1
 
-        x1_id = node_ids[i]
-        x2_id = node_ids[j]
+        # get node coordinates and cast them to Point2D
+        p1 = convert(Point2D{T}, node_coordinates[node_ids[i]])
+        p2 = convert(Point2D{T}, node_coordinates[node_ids[j]])
 
-        x1 = convert(Point2D{Float64}, node_coordinates[x1_id])
-        x2 = convert(Point2D{Float64}, node_coordinates[x2_id])
+        # compute general form equation for the selected element face
+        ABC = general_form(p1, p2)
 
-        ABC = line_general_equation(x1, x2)
+        # compute intersections between track and element face
+        parallel_side, x_int = intersection(track.ABC, ABC)
 
-        x_int = intersection(track.n, ABC, parallel_side)
-
-        # @show x1
-        # @show x2
-        # @show x_int
-
-        if parallel_side[] == 1
-            parallel_found = 1
+        # if the track is parallel to the element face, it can be on top of it or do not
+        # cross at all. Either way, we just ignore this case because we can compute the
+        # intersections using the other faces.
+        if parallel_side
+            parallel_found = true
             continue
-        elseif !point_in_segment(x1, x2, x_int)
+
+        # if the intersection is outside the face, avoid it
+        elseif !point_in_segment(p1, p2, x_int)
             continue
+
+        # this is a valid intersection, store it
         else
             n_int += 1
-            int_points[n_int,:] .= x_int
+            int_points[n_int] = x_int
         end
     end
 
-    # @show n_int
-    # @show int_points
-    # @show parallel_side[]
-
-    # ahora analizamos en que situacion caimos
-    if n_int == 3 || n_int == 4
-        ℓ = 0. # TODO: cast zero(T)
+    # now let's check all the possible situations and handle extreme cases
+    if n_int in (3, 4)
+        ℓ = zero(T)
+        # get the points that have the maximun distance between
         for i in 2:n_int, j in i:n_int
-
-            x1 = int_points[i-1,:]
-            x2 = int_points[j,:]
-
+            x1 = int_points[i-1]
+            x2 = int_points[j]
             ℓi = norm(x1 - x2)
             if ℓi > ℓ
-                segment_points[1,:] .= x1
-                segment_points[2,:] .= x2
+                x_int1 = x1
+                x_int2 = x2
                 ℓ = ℓi
             end
         end
-        return segment_points
+        return order_intersection_points(track, x_int1, x_int2)
 
-    elseif n_int == 2 && parallel_found == 1
+    elseif n_int == 2 && parallel_found
 
-        segment_points[1,:] .= int_points[1,:]
-        segment_points[2,:] .= int_points[2,:]
-        return segment_points
+        x_int1 = int_points[1]
+        x_int2 = int_points[2]
+        return order_intersection_points(track, x_int1, x_int2)
 
-    elseif n_int == 2 && parallel_found == 0
+    elseif n_int == 2 && !parallel_found
 
-        x1 = int_points[1,:]
-        x2 = int_points[2,:]
+        x_int1 = int_points[1]
+        x_int2 = int_points[2]
 
-        if norm(x1 - x2) < tiny_step
-            # .... mmmm ... para mi aca tendria que incrementar el tiny step y buscar otro elemento
-            @show "estoy aca"
-            return compute_intersections(mesh, nodes, track, tiny_step)
+        if isapprox(x_int1, x_int2)
+            # this never happened to me, but just to be sure.
+            error("This is an unexpected case. Please, submit an issue.")
         else
-            segment_points[1,:] .= int_points[1,:]
-            segment_points[2,:] .= int_points[2,:]
-            return segment_points
+            return order_intersection_points(track, x_int1, x_int2)
         end
-    elseif n_int == 1 || n_int == 0
-        return compute_intersections(mesh, nodes, track, tiny_step)
+    elseif iszero(n_int) || isone(n_int)
+        # this never happened to me, but just to be sure.
+        error("This is an unexpected case. Please, submit an issue.")
     end
 end
 
-function intersection(ABC_1, ABC_2, parallels)
-
-    # calculamos el determinante
-    # det = ABC_1[2] * ABC_2[1] - ABC_2[2] * ABC_1[1]
-
-    # si existe (no son paralelas ni coincidentes), computo la interseccion, es decir me
-    # fijo que el determinante no sea cero
-    if !isapprox(ABC_1[2] * ABC_2[1], ABC_2[2] * ABC_1[1])
-        det = ABC_1[2] * ABC_2[1] - ABC_2[2] * ABC_1[1]
-        x_int = (ABC_1[3] * ABC_2[2] - ABC_2[3] * ABC_1[2]) / det
-        y_int = (ABC_1[1] * ABC_2[3] - ABC_2[1] * ABC_1[3]) / det
-        parallels[] = 0
+function intersection(ABC1, ABC2)
+    a = ABC1[2] * ABC2[1]
+    b = ABC2[2] * ABC1[1]
+    x = y = zero(a)
+    if isapprox(a, b)
+        parallels = true
     else
-        parallels[] = 1;
+        det = a - b
+        x = (ABC1[3] * ABC2[2] - ABC2[3] * ABC1[2]) / det
+        y = (ABC1[1] * ABC2[3] - ABC2[1] * ABC1[3]) / det
+        parallels = false
     end
-
-    return SVector(x_int, y_int)
+    return parallels, Point2D(x, y)
 end
 
-# TODO: we could just use LinearAlgebra.jl or LazySet.jl
-function line_general_equation(xi, xo)
+# this one returns a matrix even if F is not invertible (have the same speed as the above)
+# function intersection(ABC1, ABC2)
+#     F = @SMatrix [ABC1[1] ABC1[2]
+#                   ABC2[1] ABC2[2]]
+#     b = @SVector [ABC1[3], ABC2[3]]
+
+#     x = F \ (-b)
+
+#     return Point2D(x[1], x[2])
+# end
+
+# faster than using linear algebra:
+# [x1 y1; x2 y2] ⋅ [Â, B̂] = [-1, -1] yields to solution for Â and B̂ such that
+# Â ⋅ x + B̂ ⋅ y + 1 = 0. Here we make it faster.
+# F = transpose(hcat(xi, xo))
+# b = SVector(-1, -1)
+# x = F \ b
+# ABC = vcat(b, 1) # and then we can normalize
+function general_form(xi::Point2D, xo::Point2D)
     A = xi[2] - xo[2]
     B = xo[1] - xi[1]
-    C = xi[1] * xo[2] - xo[1] * xi[2] # esto pareciera ser un determinante
+    C = xi[1] * xo[2] - xo[1] * xi[2]
     ABC = SVector(A, B, C)
-    n = ABC / norm(ABC)
-    return n
+    ABC /= norm(ABC) # for numerical reasons (?)
+    return ABC
 end
 
-# otra forma seria: chequear que el punto cumpla la ecuacion de la recta + inbounds, es
-# decir, ya tengo el ABC del segmento, lo uso con el punto x, y luego me fijo que las
-# coordenadas de x e y entren dentro del dominio usando inbounds, pero ahi me aparecen
-# muchos approx
-function point_in_segment(xa, xb, x)
+function point_in_segment(xa::Point2D, xb::Point2D, x::Point2D)
     la = norm(xa - x)
     lb = norm(xb - x)
     ab = norm(xa - xb)
     return isapprox(la + lb, ab)
+end
+
+function order_intersection_points(track::Track, x1::Point2D, x2::Point2D)
+    @unpack ϕ = track
+
+    # TODO: look at the n_azim_index instead
+    if ϕ < π/2
+        if x1[1] < x2[1]
+            xi = x1
+            xo = x2
+        else
+            xi = x2
+            xo = x1
+        end
+    else
+        if x1[1] > x2[1]
+            xi = x1
+            xo = x2
+        else
+            xi = x2
+            xo = x1
+        end
+    end
+    return xi, xo
 end
