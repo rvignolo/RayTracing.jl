@@ -1,4 +1,6 @@
 
+# TODO: Plots.jl seems slow for these kind of plots (many segments). Use ParaView instead?
+
 @recipe function plot(t::TrackGenerator{M,Q,T}) where {M,Q,T}
     @unpack tracks_by_uid, n_total_tracks = t
 
