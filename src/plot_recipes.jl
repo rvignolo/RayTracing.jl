@@ -1,5 +1,5 @@
 
-@recipe function plot(t::TrackGenerator{M,Q,T}; azim_idx=nothing, uid=nothing) where {M,Q,T}
+@recipe function plot(t::TrackGenerator{M,Q,T}) where {M,Q,T}
     @unpack tracks_by_uid, n_total_tracks = t
 
     x = Matrix{T}(undef, 2, n_total_tracks)
@@ -13,10 +13,7 @@
         y[2, j] = track.xo[2]
     end
 
-    # analizar cuales van con --> y con := (una fuerza seguro y la otra no)
-    # linecolor   --> :black
     seriestype  :=  :path
-    # markershape --> :circle
     linewidth   --> 0.20
     legend      --> false
     framestyle  :=  :none
@@ -46,8 +43,8 @@ end
 end
 
 @recipe function plot(mesh::Mesh)
-
     @unpack cell_nodes, model = mesh
+
     grid = get_grid(model)
     nodes = get_node_coordinates(grid)
 
@@ -64,15 +61,13 @@ end
             x[j, i] = nodes[node_id][1]
             y[j, i] = nodes[node_id][2]
         end
-        # TODO: esto lo puedo mejorar
+        # TODO: improve
         x[nn + 1, i] = nodes[nodes_ids[1]][1]
         y[nn + 1, i] = nodes[nodes_ids[1]][2]
     end
 
-    # analizar cuales van con --> y con := (una fuerza seguro y la otra no)
     linecolor   --> :black
     seriestype  :=  :path
-    # markershape --> :circle
     linewidth   --> 0.2
     legend      --> false
     framestyle  :=  :none
