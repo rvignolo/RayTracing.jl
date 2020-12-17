@@ -19,7 +19,7 @@
     # markershape --> :circle
     linewidth   --> 0.20
     legend      --> false
-    border      := :none
+    framestyle  :=  :none
 
     return (x, y)
 end
@@ -75,7 +75,7 @@ end
     # markershape --> :circle
     linewidth   --> 0.2
     legend      --> false
-    border      := :none
+    framestyle  :=  :none
 
     return (x, y)
 end

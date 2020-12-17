@@ -12,7 +12,7 @@ function Quadrature(azimuthal::AzimuthalQuadrature{T}, polar::PolarQuadrature{N,
     @unpack sinθs, ωₚ = polar
     n_polar_2 = npolar2(polar)
 
-    # IDEA: I think we can use n_azim_4 because the matrix shows repeated values
+    # IDEA: I think we can use n_azim_4 because the matrix has repeated values
     ω = Matrix{T}(undef, n_azim_2, n_polar_2) # we have polar symmetry
 
     for i in both_dir(azimuthal), j in 1:n_polar_2

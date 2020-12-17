@@ -1,0 +1,171 @@
+
+@doc raw"""
+    general_form(xi::Point2D, xo::Point2D)
+
+Returns the general form equation of a line that passes through points `xi` and `xo` as a
+[`SVector`](@ref) which holds A, B and C such that:
+```math
+A \cdot x + B \cdot y +  C = 0.
+```
+"""
+function general_form(xi::Point2D, xo::Point2D)
+    A = xi[2] - xo[2]
+    B = xo[1] - xi[1]
+    C = xi[1] * xo[2] - xo[1] * xi[2]
+    ABC = SVector(A, B, C)
+    ABC /= norm(ABC) # for numerical reasons (?)
+    return ABC
+end
+# the function above is faster than using linear algebra:
+# [x1 y1; x2 y2] ⋅ [Â, B̂] = [-1, -1] yields to solution for Â and B̂ such that
+# Â ⋅ x + B̂ ⋅ y + 1 = 0. Here we make it faster.
+# F = transpose(hcat(xi, xo))
+# b = SVector(-1, -1)
+# x = F \ b
+# ABC = vcat(b, 1) # and then we can normalize
+
+# We could use LazySets.jl for some part of this particular function but it seems slow!
+"""
+    intersections(mesh::Mesh, cell_id::Int, track::Track, tiny_step::Real)
+
+Computes the entry and exit points of a given `track` that is known to cross element with id
+`cell_id`.
+"""
+function intersections(mesh::Mesh, cell_id::Int, track::Track{T}) where {T}
+    @unpack model, cell_nodes = mesh
+
+    node_coordinates = get_node_coordinates(get_grid(model))
+    node_ids = cell_nodes[cell_id]
+
+    int_points = MVector{4,Point2D{T}}(
+        Point2D(0, 0), Point2D(0, 0), Point2D(0, 0), Point2D(0, 0)
+    )
+
+    n_int = 0
+    parallel_found = false
+    for i in 1:length(node_ids)
+
+        j = i == length(node_ids) ? 1 : i + 1
+
+        # get node coordinates and cast them to Point2D
+        p1 = convert(Point2D{T}, node_coordinates[node_ids[i]])
+        p2 = convert(Point2D{T}, node_coordinates[node_ids[j]])
+
+        # compute general form equation for the selected element face
+        ABC = general_form(p1, p2)
+
+        # compute intersections between track and element face
+        parallel_side, x_int = intersection(track.ABC, ABC)
+
+        # if the track is parallel to the element face, it can be on top of it or do not
+        # cross at all. Either way, we just ignore this case because we can compute the
+        # intersections using the other faces.
+        if parallel_side
+            parallel_found = true
+            continue
+
+        # if the intersection is outside the face, avoid it
+        elseif !point_in_segment(p1, p2, x_int)
+            continue
+
+        # this is a valid intersection, store it
+        else
+            n_int += 1
+            int_points[n_int] = x_int
+        end
+    end
+
+    # now let's check all the possible situations and handle extreme cases
+    if n_int in (3, 4)
+        ℓ = zero(T)
+        # get the points that have the maximun distance between
+        for i in 2:n_int, j in i:n_int
+            x1 = int_points[i-1]
+            x2 = int_points[j]
+            ℓi = norm(x1 - x2)
+            if ℓi > ℓ
+                x_int1 = x1
+                x_int2 = x2
+                ℓ = ℓi
+            end
+        end
+        return order_intersection_points(track, x_int1, x_int2)
+
+    elseif n_int == 2 && parallel_found
+
+        x_int1 = int_points[1]
+        x_int2 = int_points[2]
+        return order_intersection_points(track, x_int1, x_int2)
+
+    elseif n_int == 2 && !parallel_found
+
+        x_int1 = int_points[1]
+        x_int2 = int_points[2]
+
+        if isapprox(x_int1, x_int2)
+            # this never happened to me, but just to be sure.
+            error("This is an unexpected case. Please, submit an issue.")
+        else
+            return order_intersection_points(track, x_int1, x_int2)
+        end
+    elseif iszero(n_int) || isone(n_int)
+        # this never happened to me, but just to be sure.
+        error("This is an unexpected case. Please, submit an issue.")
+    end
+end
+
+"""
+    intersection(ABC1, ABC2)
+
+Computes the intersection between two lines with general form equations given by `ABC1` and
+`ABC2`. It also indicates if the lines are parallel.
+"""
+function intersection(ABC1::AbstractVector, ABC2::AbstractVector)
+    a = ABC1[2] * ABC2[1]
+    b = ABC2[2] * ABC1[1]
+    x = y = zero(a)
+    if isapprox(a, b)
+        parallels = true
+    else
+        det = a - b
+        x = (ABC1[3] * ABC2[2] - ABC2[3] * ABC1[2]) / det
+        y = (ABC1[1] * ABC2[3] - ABC2[1] * ABC1[3]) / det
+        parallels = false
+    end
+    return parallels, Point2D(x, y)
+end
+
+# this one returns a matrix even if F is not invertible (have the same speed as the above)
+# function intersection(ABC1, ABC2)
+#     F = @SMatrix [ABC1[1] ABC1[2]
+#                   ABC2[1] ABC2[2]]
+#     b = @SVector [ABC1[3], ABC2[3]]
+
+#     x = F \ (-b)
+
+#     return Point2D(x[1], x[2])
+# end
+
+function order_intersection_points(track::Track, x1::Point2D, x2::Point2D)
+    @unpack ϕ = track
+
+    # TODO: look at n_azim_index instead of ϕ
+    if isless(ϕ, π/2)
+        if x1[1] < x2[1]
+            xi = x1
+            xo = x2
+        else
+            xi = x2
+            xo = x1
+        end
+    else
+        if x1[1] > x2[1]
+            xi = x1
+            xo = x2
+        else
+            xi = x2
+            xo = x1
+        end
+    end
+    return xi, xo
+end

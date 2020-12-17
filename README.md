@@ -40,3 +40,12 @@ plot(tg, dpi=300, size=(250,250), palette=:Paired_4, background_color=:transpare
 ```
 
 ![](demo/pincell.png)
+
+Now, the segmenation routine can be called:
+```julia
+# proceed to segmentation
+segmentize!(tg)
+
+# plot mesh
+plot(tg.mesh)
+```
