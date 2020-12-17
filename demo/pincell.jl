@@ -27,3 +27,11 @@ savefig("pincell.png")
 
 # proceed to segmentation
 segmentize!(tg)
+
+# plot mesh
+plot(tg.mesh)
+
+# plot segments
+for i in 1:tg.n_total_tracks; plot!(tg.tracks_by_uid[i].segments); end;
+
+savefig("mesh-segments.svg")
