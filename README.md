@@ -49,3 +49,5 @@ segmentize!(tg)
 # plot mesh
 plot(tg.mesh)
 ```
+
+![](demo/mesh.png)
