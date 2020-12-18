@@ -31,18 +31,5 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - run: sudo apt-get install libglu1
-      - run: |
-          curl -OL http://gmsh.info/bin/Linux/gmsh-4.7.1-Linux64-sdk.tgz
-          tar xfv gmsh-4.7.1-Linux64-sdk.tgz
-          GMSHROOT=`pwd`/gmsh-4.7.1-Linux64-sdk
-          echo "GMSHROOT=${GMSHROOT}" >> $GITHUB_ENV
-      - run: |
-          echo $GMSHROOT
-          $GMSHROOT/bin/gmsh --version
-          head $GMSHROOT/lib/gmsh.jl
-      - name: install GridapGmsh
-        run: |
-          julia --project=@. -e 'using Pkg; Pkg.add(PackageSpec(url="https://github.com/gridap/GridapGmsh.jl", rev="v0.3.3"))'
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1

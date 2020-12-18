@@ -1,9 +1,14 @@
 using Plots
 using RayTracing
-using GridapGmsh: GmshDiscreteModel
+using Gridap
 
-mshfile = joinpath(@__DIR__,"pincell.msh")
-model = GmshDiscreteModel(mshfile; renumber=true)
+# using GridapGmsh: GmshDiscreteModel
+# mshfile = joinpath(@__DIR__,"pincell.msh")
+# model = GmshDiscreteModel(mshfile; renumber=true)
+# Gridap.Io.to_json_file(model, "pincell.json")
+
+jsonfile = joinpath(@__DIR__,"pincell.json")
+model = DiscreteModelFromFile(jsonfile)
 
 # number of azimuthal angles
 nφ = 8

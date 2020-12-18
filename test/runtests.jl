@@ -1,9 +1,9 @@
 using RayTracing
-using GridapGmsh: GmshDiscreteModel
+using Gridap
 using Test
 
-mshfile = joinpath(@__DIR__,"../demo/pincell.msh")
-model = GmshDiscreteModel(mshfile; renumber=true)
+jsonfile = joinpath(@__DIR__,"pincell.json")
+model = DiscreteModelFromFile(jsonfile)
 
 @testset "Basic tests" begin
 
