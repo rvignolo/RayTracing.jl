@@ -33,7 +33,7 @@ jobs:
             ${{ runner.os }}-
       - run: sudo apt-get install libglu1
       - run: |
-          curl -OL http://gmsh.info/bin/Linux/gmsh-4.4.1-Linux64-sdk.tgz
+          curl -OL http://gmsh.info/bin/Linux/gmsh-4.7.1-Linux64-sdk.tgz
           tar xfv gmsh-4.4.1-Linux64-sdk.tgz
           GMSHROOT=`pwd`/gmsh-4.4.1-Linux64-sdk
           echo "GMSHROOT=${GMSHROOT}" >> $GITHUB_ENV
