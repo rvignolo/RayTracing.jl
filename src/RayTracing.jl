@@ -12,6 +12,8 @@ using Gridap.Geometry: UnstructuredDiscreteModel, UnstructuredGrid, get_grid_top
 
 import Base: show
 import NearestNeighbors: KDTree
+import Gridap.Geometry: num_cells
+import Gridap.ReferenceFEs: num_dims, num_nodes
 
 include("point.jl")
 include("segment.jl")

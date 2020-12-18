@@ -1,9 +1,14 @@
 using Plots
 using RayTracing
-using GridapGmsh: GmshDiscreteModel
+using Gridap
 
-mshfile = joinpath(@__DIR__,"pincell.msh")
-model = GmshDiscreteModel(mshfile; renumber=true)
+# using GridapGmsh: GmshDiscreteModel
+# mshfile = joinpath(@__DIR__,"pincell.msh")
+# model = GmshDiscreteModel(mshfile; renumber=true)
+# Gridap.Io.to_json_file(model, "pincell.json")
+
+jsonfile = joinpath(@__DIR__,"pincell.json")
+model = DiscreteModelFromFile(jsonfile)
 
 # number of azimuthal angles
 nφ = 8
@@ -23,7 +28,7 @@ plot(tg, dpi=300, size=(250,250), palette=:Paired_4, background_color=:transpare
 
 # savefig("pincell.svg")
 # savefig("pincell.pdf")
-savefig("pincell.png")
+# savefig("pincell.png")
 
 # proceed to segmentation
 segmentize!(tg)
@@ -32,6 +37,6 @@ segmentize!(tg)
 plot(tg.mesh)
 
 # plot segments
-for i in 1:tg.n_total_tracks; plot!(tg.tracks_by_uid[i].segments); end;
+plot(tg.tracks_by_uid)
 
-savefig("mesh-segments.svg")
+# savefig("segments.svg")

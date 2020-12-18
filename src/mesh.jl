@@ -1,3 +1,5 @@
+# TODO: use elements for any kind of object and use cell for the other!
+
 """
     Mesh
 
@@ -23,7 +25,7 @@ function Mesh(model::UnstructuredDiscreteModel)
     grid = get_grid(model)
     kdtree = KDTree(grid)
     node_cells = get_faces(get_grid_topology(model), 0, num_cell_dims(model))
-    cell_nodes = grid.cell_nodes
+    cell_nodes = grid.cell_node_ids
     bbmin, bbmax = bounding_box(grid)
     return Mesh(model, kdtree, node_cells, cell_nodes, bbmin, bbmax)
 end
@@ -38,6 +40,10 @@ function KDTree(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
     snodes = convert.(SVector{Dp,Tp}, nodes) # Dc or Dp?
     return KDTree(snodes)
 end
+
+num_dims(mesh::Mesh) = num_dims(mesh.model)
+num_cells(mesh::Mesh) = num_cells(mesh.model)
+num_nodes(mesh::Mesh) = num_nodes(mesh.model)
 
 """
     bounding_box(grid::UnstructuredGrid)
@@ -140,7 +146,7 @@ function find_element(mesh::Mesh, x::Point2D, k::Int=2)
 end
 
 # Use dispatch once I get the info about the element type using Gridap topology.
-point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int}, x::Point2D) =
+point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D) =
     point_in_triangle(mesh, node_ids, x)
 
 """
@@ -149,7 +155,7 @@ point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int}, x::Point2D) =
 Checks if whether a given point `x` lies inside, the edge or corner of the triangle given by
 its node coordinates ids `node_ids`.
 """
-function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int}, x::Point2D)
+function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
     @unpack model = mesh
     node_coordinates = get_node_coordinates(get_grid(model))
 

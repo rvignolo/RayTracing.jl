@@ -1,7 +1,12 @@
-# IDEA: use `SArray`s instead? ahi calculo todos los numeros de una en un SVector y ya me
-# parece que va a ser mejor, incluso con las quadraturas azimutales (supongo que no me van a
-# dar tantos angulos) y las totales
-struct PolarQuadrature{N,T<:Real}
+#! IDEA: use `SArray`s instead? idem for AzimuthalQuadrature.
+
+"""
+    PolarQuadrature{N<:Int,T<:Real}
+
+Holds information regarding polar parameters, such as the polar angles and the polar
+weights.
+"""
+struct PolarQuadrature{N<:Int,T<:Real}
     sinθs::Vector{T} # SVector{N,T} como type
     θs::Vector{T}
     ωₚ::Vector{T}
