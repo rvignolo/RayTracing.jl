@@ -35,7 +35,7 @@ jobs:
       - run: |
           curl -OL http://gmsh.info/bin/Linux/gmsh-4.7.1-Linux64-sdk.tgz
           tar xfv gmsh-4.4.1-Linux64-sdk.tgz
-          GMSHROOT=`pwd`/gmsh-4.4.1-Linux64-sdk
+          GMSHROOT=`pwd`/gmsh-4.7.1-Linux64-sdk
           echo "GMSHROOT=${GMSHROOT}" >> $GITHUB_ENV
       - run: |
           echo $GMSHROOT
