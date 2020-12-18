@@ -2,10 +2,10 @@ using RayTracing
 using Gridap
 using Test
 
-jsonfile = joinpath(@__DIR__,"pincell.json")
+jsonfile = joinpath(@__DIR__,"../demo/pincell.json")
 model = DiscreteModelFromFile(jsonfile)
 
-@testset "Basic tests" begin
+@testset "Principal tests" begin
 
     tg = TrackGenerator(model, 8, 0.02)
     trace!(tg)
@@ -27,11 +27,18 @@ model = DiscreteModelFromFile(jsonfile)
         @test tg.azimuthal_quadrature.ϕs ≈ [0.39670866289121387, 1.1740876639036828, 1.9675049896861103, 2.7448839906985794]
     end
 
-    # @testset boundary points
+    @testset "Entry and exit points" begin
+        for track in tg.tracks_by_uid
+            @test isapprox(track.xi, track.segments[begin].xi)
+            @test isapprox(track.xo, track.segments[end].xo)
+        end
+    end
 end
 
-@testset "Broken case" begin
+@testset "Broken cases" begin
+
     tg = TrackGenerator(model, 8, 0.2)
     trace!(tg)
+
     @test_broken segmentize!(tg) == error("This is an unexpected case. Please, submit an issue.")
 end
