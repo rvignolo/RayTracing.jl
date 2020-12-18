@@ -8,7 +8,7 @@ struct Segment{I<:Point2D,O<:Point2D,T<:Real}
     xi::I
     xo::O
     ℓ::T
-    element::Int
+    element::Int32
 end
 
 point_in_segment(s::Segment, x::Point2D) = point_in_segment(s.xi, s.xo, x)

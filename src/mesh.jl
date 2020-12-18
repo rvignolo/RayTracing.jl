@@ -25,7 +25,7 @@ function Mesh(model::UnstructuredDiscreteModel)
     grid = get_grid(model)
     kdtree = KDTree(grid)
     node_cells = get_faces(get_grid_topology(model), 0, num_cell_dims(model))
-    cell_nodes = grid.cell_nodes
+    cell_nodes = grid.cell_node_ids
     bbmin, bbmax = bounding_box(grid)
     return Mesh(model, kdtree, node_cells, cell_nodes, bbmin, bbmax)
 end
@@ -146,7 +146,7 @@ function find_element(mesh::Mesh, x::Point2D, k::Int=2)
 end
 
 # Use dispatch once I get the info about the element type using Gridap topology.
-point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int}, x::Point2D) =
+point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D) =
     point_in_triangle(mesh, node_ids, x)
 
 """
@@ -155,7 +155,7 @@ point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int}, x::Point2D) =
 Checks if whether a given point `x` lies inside, the edge or corner of the triangle given by
 its node coordinates ids `node_ids`.
 """
-function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int}, x::Point2D)
+function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
     @unpack model = mesh
     node_coordinates = get_node_coordinates(get_grid(model))
 

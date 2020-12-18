@@ -28,7 +28,7 @@ plot(tg, dpi=300, size=(250,250), palette=:Paired_4, background_color=:transpare
 
 # savefig("pincell.svg")
 # savefig("pincell.pdf")
-savefig("pincell.png")
+# savefig("pincell.png")
 
 # proceed to segmentation
 segmentize!(tg)
@@ -37,6 +37,6 @@ segmentize!(tg)
 plot(tg.mesh)
 
 # plot segments
-for i in 1:tg.n_total_tracks; plot!(tg.tracks_by_uid[i].segments); end;
+plot(tg.tracks_by_uid)
 
-savefig("mesh-segments.svg")
+# savefig("segments.svg")

@@ -31,7 +31,7 @@ end
 Computes the entry and exit points of a given `track` that is known to cross element with id
 `cell_id`.
 """
-function intersections(mesh::Mesh, cell_id::Int, track::Track{T}) where {T}
+function intersections(mesh::Mesh, cell_id::Int32, track::Track{T}) where {T}
     @unpack model, cell_nodes = mesh
 
     node_coordinates = get_node_coordinates(get_grid(model))

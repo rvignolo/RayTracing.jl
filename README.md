@@ -50,7 +50,7 @@ segmentize!(tg)
 plot(tg.mesh)
 
 # plot segments
-for i in 1:tg.n_total_tracks; plot!(tg.tracks_by_uid[i].segments); end;
+plot(tg.tracks_by_uid)
 ```
 
 ![](demo/mesh-segments.png)
