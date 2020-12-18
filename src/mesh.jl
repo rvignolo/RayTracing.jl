@@ -1,3 +1,5 @@
+# TODO: use elements for any kind of object and use cell for the other!
+
 """
     Mesh
 
@@ -38,6 +40,10 @@ function KDTree(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
     snodes = convert.(SVector{Dp,Tp}, nodes) # Dc or Dp?
     return KDTree(snodes)
 end
+
+num_dims(mesh::Mesh) = num_dims(mesh.model)
+num_cells(mesh::Mesh) = num_cells(mesh.model)
+num_nodes(mesh::Mesh) = num_nodes(mesh.model)
 
 """
     bounding_box(grid::UnstructuredGrid)

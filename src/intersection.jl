@@ -43,9 +43,9 @@ function intersections(mesh::Mesh, cell_id::Int, track::Track{T}) where {T}
 
     n_int = 0
     parallel_found = false
-    for i in 1:length(node_ids)
+    for i in eachindex(node_ids)
 
-        j = i == length(node_ids) ? 1 : i + 1
+        j = i == lastindex(node_ids) ? 1 : i + 1
 
         # get node coordinates and cast them to Point2D
         p1 = convert(Point2D{T}, node_coordinates[node_ids[i]])

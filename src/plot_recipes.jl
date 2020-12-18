@@ -28,18 +28,22 @@ end
     n = length(segments)
     x = Matrix{Float64}(undef, 2, n) # TODO: compute Float64
     y = Matrix{Float64}(undef, 2, n)
+    z = Matrix{Float64}(undef, 2, n)
 
     for (i, segment) in enumerate(segments)
         x[1, i] = segment.xi[1]
         x[2, i] = segment.xo[1]
         y[1, i] = segment.xi[2]
         y[2, i] = segment.xo[2]
+        z[1, i] = segment.element
+        z[2, i] = segment.element
     end
 
     seriestype  :=  :path
-    linewidth   --> 0.20
+    linewidth   --> 0.25
     legend      --> false
     framestyle  :=  :none
+    line_z      :=  z
 
     return (x, y)
 end
