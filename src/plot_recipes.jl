@@ -48,6 +48,33 @@ end
     return (x, y)
 end
 
+@recipe function plot(tracks::Vector{Track})
+
+    # m = length(tracks)
+    # n = length(segments)
+    x = Matrix{Float64}(undef, 2, 0)
+    y = Matrix{Float64}(undef, 2, 0)
+    z = Matrix{Float64}(undef, 2, 0)
+
+    @show "hola"
+
+    for track in tracks
+        for segment in track.segments
+            x = hcat(x, [segment.xi[1], segment.xo[1]])
+            y = hcat(y, [segment.xi[2], segment.xo[2]])
+            z = hcat(z, [segment.element, segment.element])
+        end
+    end
+
+    seriestype  :=  :path
+    linewidth   --> 0.25
+    legend      --> false
+    framestyle  :=  :none
+    line_z      :=  z
+
+    return (x, y)
+end
+
 @recipe function plot(mesh::Mesh)
     @unpack cell_nodes, model = mesh
 

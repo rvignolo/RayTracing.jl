@@ -1,6 +1,11 @@
 include("azimuthal_quad.jl")
 include("polar_quad.jl")
 
+"""
+    Quadrature{A<:AzimuthalQuadrature,P<:PolarQuadrature,T<:Real}
+
+Holds information regarding both the azimuthal and polar quadrature and the total weights.
+"""
 struct Quadrature{A<:AzimuthalQuadrature,P<:PolarQuadrature,T<:Real}
     azimuthal::A
     polar::P

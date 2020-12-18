@@ -1,10 +1,16 @@
-struct AzimuthalQuadrature{T}
-    n_azim::Int    # the number of azimuthal angles in (0, 2π)
-    n_azim_2::Int  # the number of azimuthal angles in (0, π)
-    n_azim_4::Int  # the number of azimuthal angles in (0, π/2)
+"""
+    AzimuthalQuadrature{T<:Real}
 
-    δ::T # azimuthal spacing (provided as input)
-    δs::Vector{T} # effective azimuthal spacings
+Holds information regarding azimuthal parameters, such as the azimuthal angles, the
+azimuthal spacing as well as effective azimuthal spacings and the azimuthal weights.
+"""
+struct AzimuthalQuadrature{T<:Real}
+    n_azim::Int    # in (0, 2π)
+    n_azim_2::Int  # in (0, π)
+    n_azim_4::Int  # in (0, π/2)
+
+    δ::T
+    δs::Vector{T}
 
     ϕs::Vector{T}
     ωₐ::Vector{T}
