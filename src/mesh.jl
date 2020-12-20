@@ -25,7 +25,7 @@ function Mesh(model::UnstructuredDiscreteModel)
     grid = get_grid(model)
     kdtree = KDTree(grid)
     node_cells = get_faces(get_grid_topology(model), 0, num_cell_dims(model))
-    cell_nodes = grid.cell_node_ids
+    cell_nodes = get_cell_node_ids(grid)
     bbmin, bbmax = bounding_box(grid)
     return Mesh(model, kdtree, node_cells, cell_nodes, bbmin, bbmax)
 end
@@ -181,7 +181,7 @@ end
 Checks if whether a given point `x` lies inside the quadrangle given by its node coordinates
 ids `node_ids`.
 """
-function point_in_quadrangle(mesh::Mesh, node_ids::AbstractVector{<:Int}, x::Point2D)
+function point_in_quadrangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
 
     # triangle node ids
     t_node_ids = @MVector zeros(3)

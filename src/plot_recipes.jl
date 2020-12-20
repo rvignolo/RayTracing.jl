@@ -56,8 +56,6 @@ end
     y = Matrix{Float64}(undef, 2, 0)
     z = Matrix{Float64}(undef, 2, 0)
 
-    @show "hola"
-
     for track in tracks
         for segment in track.segments
             x = hcat(x, [segment.xi[1], segment.xo[1]])
