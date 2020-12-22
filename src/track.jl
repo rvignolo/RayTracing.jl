@@ -5,7 +5,7 @@ Represents a neutron trajectory across the domain, with certain azimuthal angle 
 and exit points `xi` and `xo`, length `ℓ` and formed by `segments` coming from its
 segmentation.
 """
-struct Track{T<:Real,I<:Point2D,O<:Point2D,S<:AbstractVector}
+struct Track{T<:Real,I<:Point2D,O<:Point2D,S<:AbstractVector,BC<:BoundaryType}
     ϕ::T
     xi::I
     xo::O
@@ -13,10 +13,8 @@ struct Track{T<:Real,I<:Point2D,O<:Point2D,S<:AbstractVector}
     ABC::S
     segments::Vector{Segment}
 
-    # we will eventually need the following fields fields for neutron transport:
-
-    # bi::PhysicalEntity
-    # bo::PhysicalEntity
+    bi::BC
+    bo::BC
 
     # next_track_fwd::Track
     # next_track_bwd::Track
@@ -78,7 +76,7 @@ function _segmentize_track!(t, track::Track, k::Int=5) # t::TrackGenerator
         # compute intersections between track and the element
         xi, xo = intersections(mesh, element, track)
 
-        segment = Segment(xi, xo, norm(xi - xo), element)
+        segment = Segment(xi, xo, element)
         push!(segments, segment)
 
         # update new starting point and previous element

@@ -16,8 +16,11 @@ nφ = 8
 # azimuthal spacing
 δ = 0.02
 
+# boundary conditions
+bcs = BoundaryConditions(top=Reflective, bottom=Reflective, left=Reflective, right=Reflective)
+
 # initialize track generator
-tg = TrackGenerator(model, nφ, δ)
+tg = TrackGenerator(model, nφ, δ, bcs=bcs)
 
 # perform ray tracing
 trace!(tg)

@@ -5,8 +5,9 @@
 This is the main structure of the library, which holds all the information about the ray
 tracing.
 """
-struct TrackGenerator{M<:Mesh,Q<:AzimuthalQuadrature,T<:Real}
+struct TrackGenerator{T<:Real,M<:Mesh,BC<:BoundaryConditions,Q<:AzimuthalQuadrature}
     mesh::M
+    bcs::BC
 
     azimuthal_quadrature::Q
     n_tracks_x::Vector{Int}
@@ -22,7 +23,7 @@ struct TrackGenerator{M<:Mesh,Q<:AzimuthalQuadrature,T<:Real}
     volumes::Vector{T}
 end
 
-function show(io::IO, t::TrackGenerator{M,Q,T}) where {M,Q,T}
+function show(io::IO, t::TrackGenerator)
     @unpack azimuthal_quadrature, n_total_tracks, correct_volumes = t
     @unpack n_azim_2, δs, ϕs = azimuthal_quadrature
     # println(io, typeof(t))
@@ -51,7 +52,7 @@ the ray tracing algorithm yields to approximate volumes.
 """
 function TrackGenerator(
     model::UnstructuredDiscreteModel, n_azim::Int, δ::T;
-    tiny_step::T=1e-8, correct_volumes=false
+    bcs::BoundaryConditions=BoundaryConditions(), tiny_step::T=1e-8, correct_volumes=false
 ) where {T<:Real}
 
     n_azim > 0 || throw(DomainError(n_azim, "number of azimuthal angles must be > 0."))
@@ -97,8 +98,8 @@ function TrackGenerator(
     volumes = Vector{T}(undef, num_cells(model))
 
     return TrackGenerator(
-        mesh, azimuthal_quadrature, n_tracks_x, n_tracks_y, n_tracks, n_total_tracks, tracks,
-        tracks_by_uid, tiny_step, correct_volumes, volumes
+        mesh, bcs, azimuthal_quadrature, n_tracks_x, n_tracks_y, n_tracks, n_total_tracks,
+        tracks, tracks_by_uid, tiny_step, correct_volumes, volumes
     )
 end
 
@@ -109,8 +110,8 @@ Computes and fills both the azimuthal quadrature and cyclic tracks around the re
 domain using the provided azimuthal angles and spacing when defining the [`TrackGenerator`](@ref)
 `t`.
 """
-function trace!(t::TrackGenerator{M,Q,T}) where {M,Q,T}
-    @unpack mesh, azimuthal_quadrature = t
+function trace!(t::TrackGenerator{T}) where {T}
+    @unpack mesh, bcs, azimuthal_quadrature = t
     @unpack n_tracks_x, n_tracks_y, n_tracks = t
     @unpack tracks, tracks_by_uid = t
     @unpack bbmin, bbmax = mesh
@@ -142,6 +143,14 @@ function trace!(t::TrackGenerator{M,Q,T}) where {M,Q,T}
 
     # once we have computed all the azimuthal angles, compute weights
     init_weights!(azimuthal_quadrature)
+
+    # mesh vertices and side segments
+    p1 = bbmin
+    p2 = Point2D(bbmin[1], bbmax[2])
+    p3 = bbmax
+    p4 = Point2D(bbmax[1], bbmin[2])
+    sides = (top=Segment(p2, p3), bottom=Segment(p4, p1),
+             right=Segment(p3, p4), left=Segment(p1, p2))
 
     for i in both_dir(azimuthal_quadrature)
 
@@ -186,6 +195,9 @@ function trace!(t::TrackGenerator{M,Q,T}) where {M,Q,T}
                 end
             end
 
+            bi = boundary_condition(xi, sides, bcs)
+            bo = boundary_condition(xo, sides, bcs)
+
             # compute distance and recalibrate coordinates
             ℓ = norm(xi - xo)
             xi = xi + bbmin
@@ -194,7 +206,7 @@ function trace!(t::TrackGenerator{M,Q,T}) where {M,Q,T}
             ABC = general_form(xi, xo)
             segments = Vector{Segment}(undef, 0)
 
-            tracks[i][j] = Track(ϕ, xi, xo, ℓ, ABC, segments)
+            tracks[i][j] = Track(ϕ, xi, xo, ℓ, ABC, segments, bi, bo)
         end
     end
 

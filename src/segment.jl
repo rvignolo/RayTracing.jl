@@ -11,11 +11,13 @@ struct Segment{I<:Point2D,O<:Point2D,T<:Real}
     element::Int32
 end
 
-point_in_segment(s::Segment, x::Point2D) = point_in_segment(s.xi, s.xo, x)
+Segment(p::Point2D, q::Point2D, element::Int32=Int32(-1)) = Segment(p, q, norm(p - q), element)
 
-function point_in_segment(xa::Point2D, xb::Point2D, x::Point2D)
-    la = norm(xa - x)
-    lb = norm(xb - x)
-    ab = norm(xa - xb)
-    return isapprox(la + lb, ab)
+in(x::Point2D, s::Segment) = point_in_segment(s.xi, s.xo, x)
+
+function point_in_segment(p::Point2D, q::Point2D, x::Point2D)
+    lpx = norm(p - x)
+    lqx = norm(q - x)
+    lpq = norm(p - q)
+    return isapprox(lpx + lqx, lpq)
 end
