@@ -34,9 +34,8 @@ function show(io::IO, t::TrackGenerator)
     print(io,   "  Correct volumes: ", correct_volumes)
 end
 
-# estas ver donde las mandamos
-xorigin(n_tracks_x, i, j) = j <= n_tracks_x[i] # name: origins_in_x
-yorigin(n_tracks_x, i, j) = !xorigin(n_tracks_x, i, j)
+origins_in_x(n_tracks_x, i, j) = j ≤ n_tracks_x[i]
+origins_in_y(n_tracks_x, i, j) = !origins_in_x(n_tracks_x, i, j)
 
 """
     TrackGenerator(
@@ -160,7 +159,7 @@ function trace!(t::TrackGenerator{T}) where {T}
         # for all tracks in a given azimuthal direction
         for j in 1:n_tracks[i]
 
-            if xorigin(n_tracks_x, i, j)
+            if origins_in_x(n_tracks_x, i, j)
                 if points_right(azimuthal_quadrature, i)
                     xi = Point2D(δx[i] * (n_tracks_x[i] - j + 1 / 2), 0)
                 else
@@ -179,10 +178,10 @@ function trace!(t::TrackGenerator{T}) where {T}
             xo = Point2D(xi[1] - (xi[2] - Δy) / m, Δy)
 
             # keep going if `xo` is not an exit point
-            if !(0 <= xo[1] <= Δx)
+            if !(0 ≤ xo[1] ≤ Δx)
 
                 # it can exit at x = Δx if it points to the right
-                if i <= n_azim_4
+                if i ≤ n_azim_4
                     xo = Point2D(Δx, xi[2] + m * (Δx - xi[1]))
 
                 # or it can exit at x = 0 if it points to the left
@@ -190,13 +189,10 @@ function trace!(t::TrackGenerator{T}) where {T}
                     xo = Point2D(0, xi[2] - m * xi[1])
                 end
 
-                if !(0 <= xo[2] <= Δy)
+                if !(0 ≤ xo[2] ≤ Δy)
                     throw(DomainError("could not found track exit point."))
                 end
             end
-
-            bi = boundary_condition(xi, sides, bcs)
-            bo = boundary_condition(xo, sides, bcs)
 
             # compute distance and recalibrate coordinates
             ℓ = norm(xi - xo)
@@ -206,7 +202,67 @@ function trace!(t::TrackGenerator{T}) where {T}
             ABC = general_form(xi, xo)
             segments = Vector{Segment}(undef, 0)
 
-            tracks[i][j] = Track(ϕ, xi, xo, ℓ, ABC, segments, bi, bo)
+            bi = boundary_condition(xi, sides, bcs)
+            bo = boundary_condition(xo, sides, bcs)
+
+            fwd = Base.RefValue{Track}()
+            bwd = Base.RefValue{Track}()
+
+            tracks[i][j] = Track(ϕ, xi, xo, ℓ, ABC, segments, bi, bo, fwd, bwd)
+        end
+    end
+
+    # once we have all tracks and boundary conditions, set next tracks
+    for i in both_dir(azimuthal_quadrature)
+
+        k = suplementary_idx(azimuthal_quadrature, i)
+
+        for j in 1:n_tracks[i]
+
+            track = tracks[i][j]
+
+            # search for the next track in forward direction
+            # these are the tracks that arrive to the y-axis
+            if j ≤ n_tracks_y[i]
+                # track.dir_next_track_fwd = 0 # TODO
+
+                if track.bo == Periodic
+                    track.next_track_fwd = tracks[i][j + n_tracks_x[i]]
+                elseif track.bo == Vaccum || track.bo == Reflective
+                    track.next_track_fwd[] = tracks[k][j + n_tracks_x[i]]
+                end
+
+            # these are the tracks that arrive to the top (superior x-axis)
+            else
+                if track.bo == Periodic
+                    # track.dir_next_track_fwd = 0 # TODO
+                    track.next_track_fwd = tracks[i][j - n_tracks_y[i]]
+                elseif track.bo == Vaccum || track.bo == Reflective
+                    # track.dir_next_track_fwd = 1 # TODO
+                    track.next_track_fwd[] = tracks[k][n_tracks[i] + n_tracks_y[i] - j + 1]
+                end
+            end
+
+            # search for the next track in backward direction
+            # these are the tracks that arrive to the bottom (inferior x-axis)
+            if j ≤ n_tracks_x[i]
+                if track.bo == Periodic
+                    # track.dir_next_track_bwd = 1 # TODO
+                    track.next_track_bwd[] = tracks[i][j + n_tracks_y[i]]
+                elseif track.bo == Vaccum || track.bo == Reflective
+                    # track.dir_next_track_bwd = 0 # TODO
+                    track.next_track_bwd[] = tracks[k][n_tracks_x[i] - j + 1]
+                end
+
+            # these are the tracks that arrive to the y-axis
+            else
+                # track.dir_next_track_bwd = 1 # TODO
+                if track.bo == Periodic
+                    track.next_track_bwd[] = tracks[i][j - n_tracks_x[i]]
+                elseif track.bo == Vaccum || track.bo == Reflective
+                    track.next_track_bwd[] = tracks[k][j - n_tracks_x[i]]
+                end
+            end
         end
     end
 

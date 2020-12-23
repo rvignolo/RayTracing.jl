@@ -16,11 +16,26 @@ struct Track{T<:Real,I<:Point2D,O<:Point2D,S<:AbstractVector,BC<:BoundaryType}
     bi::BC
     bo::BC
 
-    # next_track_fwd::Track
-    # next_track_bwd::Track
+    next_track_fwd::Base.RefValue{Track}
+    next_track_bwd::Base.RefValue{Track}
 
     # dir_next_track_fwd::Int
     # dir_next_track_bwd::Int
+end
+
+function show(io::IO, track::Track)
+    @unpack ϕ, xi, xo, ℓ, segments, bi, bo, next_track_fwd, next_track_bwd = track
+    # println(io, typeof(t))
+    println(io, "  Azimuthal angle: ", round(rad2deg(ϕ), digits=2))
+    println(io, "  Entry point: ", xi)
+    println(io, "  Exit point: ", xo)
+    println(io, "  Length: ", ℓ)
+    println(io, "  # of segments: ", length(segments)) # if it is zero, run segmentize!
+    println(io, "  Boundary at entry: ", bi)
+    print(io,   "  Boundary at exit: ", bo)
+    # avoid printing circular references (since it is a cyclic ray tracing...)
+    # println(io, "  Next track fwd: ", next_track_fwd)
+    # print(io,   "  Next track fwd: ", next_track_bwd)
 end
 
 # since we are in active development of the package and there might be unconsidered cases in
