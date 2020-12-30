@@ -258,6 +258,8 @@ function next_track_fwd(t::TrackGenerator, track::Track)
 
     i, j, k = azim_idx, track_idx, suplementary_idx(azimuthal_quadrature, azim_idx)
 
+    BOut = boundary_out(track)
+
     # these are the tracks that arrive to the y-axis
     if j ≤ n_tracks_y[i]
         if BOut == Periodic
