@@ -1,17 +1,21 @@
 
 @enum DirectionType begin
-    Backward
     Forward
+    Backward
 end
 
 """
-    Track{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd,T<:Real}
+    Track{BIn,BOut,DFwd,DBwd,T<:Real}
 
 Represents a neutron trajectory across the domain, with certain azimuthal angle `ϕ`, entry
 and exit points `p` and `q`, length `ℓ` and formed by `segments` coming from its
 segmentation.
 """
-mutable struct Track{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd,T<:Real}
+mutable struct Track{BIn,BOut,DFwd,DBwd,T<:Real}
+    uid::Int
+    azim_idx::Int
+    track_idx::Int
+
     p::Point2D{T}
     q::Point2D{T}
 
@@ -24,23 +28,24 @@ mutable struct Track{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd,T<:Real}
     next_track_fwd::Track
     next_track_bwd::Track
 
-    function Track{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd}(
-        p::Point2D{T}, q::Point2D{T}, ϕ::T, ℓ::T, ABC::SVector{3,T}, segments::Vector{Segment}
-    ) where {UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd,T}
-        track = new{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd,T}(p, q, ϕ, ℓ, ABC, segments)
+    function Track{BIn,BOut,DFwd,DBwd}(
+        uid::Int, azim_idx::Int, track_idx::Int, p::Point2D{T}, q::Point2D{T}, ϕ::T, ℓ::T,
+        ABC::SVector{3,T}, segments::Vector{Segment}
+    ) where {BIn,BOut,DFwd,DBwd,T}
+        track = new{BIn,BOut,DFwd,DBwd,T}(uid, azim_idx, track_idx, p, q, ϕ, ℓ, ABC, segments)
         track.next_track_fwd = track
         track.next_track_bwd = track
         return track
     end
 end
 
-universal_id(::Track{UId}) where {UId} = UId
-azim_idx(::Track{UId,AIdx}) where {UId,AIdx} = AIdx
-track_idx(::Track{UId,AIdx,TIdx}) where {UId,AIdx,TIdx} = TIdx
-boundary_in(::Track{UId,AIdx,TIdx,BIn}) where {UId,AIdx,TIdx,BIn} = BIn
-boundary_out(::Track{UId,AIdx,TIdx,BIn,BOut}) where {UId,AIdx,TIdx,BIn,BOut} = BOut
-dir_next_track_fwd(::Track{UId,AIdx,TIdx,BIn,BOut,DFwd}) where {UId,AIdx,TIdx,BIn,BOut,DFwd} = DFwd
-dir_next_track_bwd(::Track{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd}) where {UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd} = DBwd
+universal_id(track::Track) = track.uid
+azim_idx(track::Track) = track.azim_idx
+track_idx(track::Track) = track.track_idx
+boundary_in(::Track{BIn}) where {BIn} = BIn
+boundary_out(::Track{BIn,BOut}) where {BIn,BOut} = BOut
+dir_next_track_fwd(::Track{BIn,BOut,DFwd}) where {BIn,BOut,DFwd} = DFwd
+dir_next_track_bwd(::Track{BIn,BOut,DFwd,DBwd}) where {BIn,BOut,DFwd,DBwd} = DBwd
 
 function show(io::IO, track::Track)
     @unpack ϕ, p, q, ℓ, segments = track

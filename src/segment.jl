@@ -8,7 +8,7 @@ struct Segment{T<:Real}
     p::Point2D{T}
     q::Point2D{T}
     ℓ::T
-    element::Int32
+    element::Int32 # TODO: deberia llamarlo cell_id o algo asi
 end
 
 Segment(p::Point2D, q::Point2D, element::Int32=Int32(-1)) = Segment(p, q, norm(p - q), element)

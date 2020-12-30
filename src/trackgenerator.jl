@@ -226,7 +226,7 @@ function trace!(t::TrackGenerator{T}) where {T}
                 db = Backward
             end
 
-            track = Track{uid,i,j,bi,bo,df,db}(p, q, ϕ, ℓ, ABC, segments)
+            track = Track{bi,bo,df,db}(uid, i, j, p, q, ϕ, ℓ, ABC, segments)
             tracks_by_uid[uid] = track
             tracks[i][j] = track
             uid += 1
@@ -254,14 +254,9 @@ end
 function next_track_fwd(t::TrackGenerator, track::Track)
     @unpack azimuthal_quadrature, tracks = t
     @unpack n_tracks_x, n_tracks_y, n_tracks = t
+    @unpack azim_idx, track_idx = track
 
-    AIdx = azim_idx(track)
-    TIdx = track_idx(track)
-    BOut = boundary_out(track)
-
-    i = AIdx
-    j = TIdx
-    k = suplementary_idx(azimuthal_quadrature, AIdx)
+    i, j, k = azim_idx, track_idx, suplementary_idx(azimuthal_quadrature, azim_idx)
 
     # these are the tracks that arrive to the y-axis
     if j ≤ n_tracks_y[i]
@@ -285,14 +280,11 @@ end
 function next_track_bwd(t::TrackGenerator, track::Track)
     @unpack azimuthal_quadrature, tracks = t
     @unpack n_tracks_x, n_tracks_y, n_tracks = t
+    @unpack azim_idx, track_idx = track
 
-    AIdx = azim_idx(track)
-    TIdx = track_idx(track)
+    i, j, k = azim_idx, track_idx, suplementary_idx(azimuthal_quadrature, azim_idx)
+
     BOut = boundary_out(track)
-
-    i = AIdx
-    j = TIdx
-    k = suplementary_idx(azimuthal_quadrature, AIdx)
 
     # these are the tracks that arrive to the bottom (inferior x-axis)
     if j ≤ n_tracks_x[i]
