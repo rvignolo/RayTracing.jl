@@ -1,38 +1,57 @@
-"""
-    Track{T<:Real,I<:Real,O<:Real,S}
 
-Represents a neutron trajectory across the domain, with certain azimuthal angle `ϕ`, entry
-and exit points `xi` and `xo`, length `ℓ` and formed by `segments` coming from its
-segmentation.
-"""
-struct Track{T<:Real,I<:Point2D,O<:Point2D,S<:AbstractVector,BC<:BoundaryType}
-    ϕ::T
-    xi::I
-    xo::O
-    ℓ::T
-    ABC::S
-    segments::Vector{Segment}
-
-    bi::BC
-    bo::BC
-
-    next_track_fwd::Base.RefValue{Track}
-    next_track_bwd::Base.RefValue{Track}
-
-    # dir_next_track_fwd::Int
-    # dir_next_track_bwd::Int
+@enum DirectionType begin
+    Backward
+    Forward
 end
 
+"""
+    Track{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd,T<:Real}
+
+Represents a neutron trajectory across the domain, with certain azimuthal angle `ϕ`, entry
+and exit points `p` and `q`, length `ℓ` and formed by `segments` coming from its
+segmentation.
+"""
+mutable struct Track{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd,T<:Real}
+    p::Point2D{T}
+    q::Point2D{T}
+
+    ϕ::T
+    ℓ::T
+
+    ABC::SVector{3,T}
+    segments::Vector{Segment}
+
+    next_track_fwd::Track
+    next_track_bwd::Track
+
+    function Track{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd}(
+        p::Point2D{T}, q::Point2D{T}, ϕ::T, ℓ::T, ABC::SVector{3,T}, segments::Vector{Segment}
+    ) where {UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd,T}
+        track = new{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd,T}(p, q, ϕ, ℓ, ABC, segments)
+        track.next_track_fwd = track
+        track.next_track_bwd = track
+        return track
+    end
+end
+
+universal_id(::Track{UId}) where {UId} = UId
+azim_idx(::Track{UId,AIdx}) where {UId,AIdx} = AIdx
+track_idx(::Track{UId,AIdx,TIdx}) where {UId,AIdx,TIdx} = TIdx
+boundary_in(::Track{UId,AIdx,TIdx,BIn}) where {UId,AIdx,TIdx,BIn} = BIn
+boundary_out(::Track{UId,AIdx,TIdx,BIn,BOut}) where {UId,AIdx,TIdx,BIn,BOut} = BOut
+dir_next_track_fwd(::Track{UId,AIdx,TIdx,BIn,BOut,DFwd}) where {UId,AIdx,TIdx,BIn,BOut,DFwd} = DFwd
+dir_next_track_bwd(::Track{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd}) where {UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd} = DBwd
+
 function show(io::IO, track::Track)
-    @unpack ϕ, xi, xo, ℓ, segments, bi, bo, next_track_fwd, next_track_bwd = track
+    @unpack ϕ, p, q, ℓ, segments = track
     # println(io, typeof(t))
     println(io, "  Azimuthal angle: ", round(rad2deg(ϕ), digits=2))
-    println(io, "  Entry point: ", xi)
-    println(io, "  Exit point: ", xo)
+    println(io, "  Entry point: ", p)
+    println(io, "  Exit point: ", q)
     println(io, "  Length: ", ℓ)
     println(io, "  # of segments: ", length(segments)) # if it is zero, run segmentize!
-    println(io, "  Boundary at entry: ", bi)
-    print(io,   "  Boundary at exit: ", bo)
+    println(io, "  Boundary at entry: ", boundary_in(track))
+    print(io,   "  Boundary at exit: ", boundary_out(track))
     # avoid printing circular references (since it is a cyclic ray tracing...)
     # println(io, "  Next track fwd: ", next_track_fwd)
     # print(io,   "  Next track fwd: ", next_track_bwd)
@@ -50,7 +69,7 @@ function _segmentize_track!(t, track::Track, k::Int=5) # t::TrackGenerator
     empty!(segments)
 
     # move a tiny step in ϕ direction to get inside the mesh
-    xp = advance_step(track.xi, tiny_step, ϕ)
+    xp = advance_step(track.p, tiny_step, ϕ)
 
     i = 0
     element = -1
@@ -89,13 +108,13 @@ function _segmentize_track!(t, track::Track, k::Int=5) # t::TrackGenerator
         end
 
         # compute intersections between track and the element
-        xi, xo = intersections(mesh, element, track)
+        p, q = intersections(mesh, element, track)
 
-        segment = Segment(xi, xo, element)
+        segment = Segment(p, q, element)
         push!(segments, segment)
 
         # update new starting point and previous element
-        xp = advance_step(xo, tiny_step, ϕ)
+        xp = advance_step(q, tiny_step, ϕ)
         prev_element = element
 
         i += 1 # just for safety

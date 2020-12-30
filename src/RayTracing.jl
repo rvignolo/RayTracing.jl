@@ -1,6 +1,7 @@
 module RayTracing
 
 using UnPack
+using Setfield
 using RecipesBase
 using StaticArrays
 using IntervalSets

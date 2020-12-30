@@ -43,7 +43,7 @@ function init_weights!(aq::AzimuthalQuadrature)
     return nothing
 end
 
-right_dir(aq::AzimuthalQuadrature) = 1:aq.n_azim_4
+right_dir(aq::AzimuthalQuadrature) = 1:aq.n_azim_4 # TODO: use north-west y cosas asi?
 left_dir(aq::AzimuthalQuadrature) = (aq.n_azim_4+1):aq.n_azim_2
 both_dir(aq::AzimuthalQuadrature) = 1:aq.n_azim_2
 

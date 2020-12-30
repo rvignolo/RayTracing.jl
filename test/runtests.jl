@@ -29,8 +29,8 @@ model = DiscreteModelFromFile(jsonfile)
 
     @testset "Entry and exit points" begin
         for track in tg.tracks_by_uid
-            @test isapprox(track.xi, track.segments[begin].xi)
-            @test isapprox(track.xo, track.segments[end].xo)
+            @test isapprox(track.p, track.segments[begin].p)
+            @test isapprox(track.q, track.segments[end].q)
         end
     end
 end

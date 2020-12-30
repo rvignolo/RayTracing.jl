@@ -151,6 +151,7 @@ function trace!(t::TrackGenerator{T}) where {T}
     sides = (top=Segment(p2, p3), bottom=Segment(p4, p1),
              right=Segment(p3, p4), left=Segment(p1, p2))
 
+    uid = 1
     for i in both_dir(azimuthal_quadrature)
 
         # get azimuthal angle
@@ -161,119 +162,155 @@ function trace!(t::TrackGenerator{T}) where {T}
 
             if origins_in_x(n_tracks_x, i, j)
                 if points_right(azimuthal_quadrature, i)
-                    xi = Point2D(δx[i] * (n_tracks_x[i] - j + 1 / 2), 0)
+                    p = Point2D(δx[i] * (n_tracks_x[i] - j + 1 / 2), 0)
                 else
-                    xi = Point2D(δx[i] * (j - 1 / 2), 0)
+                    p = Point2D(δx[i] * (j - 1 / 2), 0)
                 end
             else
                 if points_right(azimuthal_quadrature, i)
-                    xi = Point2D(0, δy[i] * (j - n_tracks_x[i] - 1 / 2))
+                    p = Point2D(0, δy[i] * (j - n_tracks_x[i] - 1 / 2))
                 else
-                    xi = Point2D(Δx, δy[i] * (j - n_tracks_x[i] - 1 / 2))
+                    p = Point2D(Δx, δy[i] * (j - n_tracks_x[i] - 1 / 2))
                 end
             end
 
             # it can exit at y = Δy regardless if it points to the right or left
             m = tan(ϕ)
-            xo = Point2D(xi[1] - (xi[2] - Δy) / m, Δy)
+            q = Point2D(p[1] - (p[2] - Δy) / m, Δy)
 
-            # keep going if `xo` is not an exit point
-            if !(0 ≤ xo[1] ≤ Δx)
+            # keep going if `q` is not an exit point
+            if !(0 ≤ q[1] ≤ Δx)
 
                 # it can exit at x = Δx if it points to the right
                 if i ≤ n_azim_4
-                    xo = Point2D(Δx, xi[2] + m * (Δx - xi[1]))
+                    q = Point2D(Δx, p[2] + m * (Δx - p[1]))
 
                 # or it can exit at x = 0 if it points to the left
                 else
-                    xo = Point2D(0, xi[2] - m * xi[1])
+                    q = Point2D(0, p[2] - m * p[1])
                 end
 
-                if !(0 ≤ xo[2] ≤ Δy)
+                if !(0 ≤ q[2] ≤ Δy)
                     throw(DomainError("could not found track exit point."))
                 end
             end
 
-            # compute distance and recalibrate coordinates
-            ℓ = norm(xi - xo)
-            xi = xi + bbmin
-            xo = xo + bbmin
+            # recalibrate coordinates and compute distance
+            p += bbmin
+            q += bbmin
+            ℓ = norm(p - q)
 
-            ABC = general_form(xi, xo)
+            ABC = general_form(p, q)
             segments = Vector{Segment}(undef, 0)
 
-            bi = boundary_condition(xi, sides, bcs)
-            bo = boundary_condition(xo, sides, bcs)
+            bi = boundary_condition(p, sides, bcs)
+            bo = boundary_condition(q, sides, bcs)
 
-            fwd = Base.RefValue{Track}()
-            bwd = Base.RefValue{Track}()
+            if j ≤ n_tracks_y[i]
+                df = Forward
+            else
+                if bo == Periodic
+                    df = Forward
+                elseif bo == Vaccum || bo == Reflective
+                    df = Backward
+                end
+            end
 
-            tracks[i][j] = Track(ϕ, xi, xo, ℓ, ABC, segments, bi, bo, fwd, bwd)
+            if j ≤ n_tracks_x[i]
+                if bo == Periodic
+                    db = Backward
+                elseif bo == Vaccum || bo == Reflective
+                    db = Forward
+                end
+            else
+                db = Backward
+            end
+
+            track = Track{uid,i,j,bi,bo,df,db}(p, q, ϕ, ℓ, ABC, segments)
+            tracks_by_uid[uid] = track
+            tracks[i][j] = track
+            uid += 1
         end
     end
 
     # once we have all tracks and boundary conditions, set next tracks
-    for i in both_dir(azimuthal_quadrature)
+    next_tracks(t)
 
-        k = suplementary_idx(azimuthal_quadrature, i)
+    return t
+end
 
-        for j in 1:n_tracks[i]
+function next_tracks(t::TrackGenerator)
+    @unpack tracks_by_uid = t
 
-            track = tracks[i][j]
+    # search for the next track in forward and backward direction
+    for track in tracks_by_uid
+        next_track_fwd(t, track)
+        next_track_bwd(t, track)
+    end
 
-            # search for the next track in forward direction
-            # these are the tracks that arrive to the y-axis
-            if j ≤ n_tracks_y[i]
-                # track.dir_next_track_fwd = 0 # TODO
+    return nothing
+end
 
-                if track.bo == Periodic
-                    track.next_track_fwd = tracks[i][j + n_tracks_x[i]]
-                elseif track.bo == Vaccum || track.bo == Reflective
-                    track.next_track_fwd[] = tracks[k][j + n_tracks_x[i]]
-                end
+function next_track_fwd(t::TrackGenerator, track::Track)
+    @unpack azimuthal_quadrature, tracks = t
+    @unpack n_tracks_x, n_tracks_y, n_tracks = t
 
-            # these are the tracks that arrive to the top (superior x-axis)
-            else
-                if track.bo == Periodic
-                    # track.dir_next_track_fwd = 0 # TODO
-                    track.next_track_fwd = tracks[i][j - n_tracks_y[i]]
-                elseif track.bo == Vaccum || track.bo == Reflective
-                    # track.dir_next_track_fwd = 1 # TODO
-                    track.next_track_fwd[] = tracks[k][n_tracks[i] + n_tracks_y[i] - j + 1]
-                end
-            end
+    AIdx = azim_idx(track)
+    TIdx = track_idx(track)
+    BOut = boundary_out(track)
 
-            # search for the next track in backward direction
-            # these are the tracks that arrive to the bottom (inferior x-axis)
-            if j ≤ n_tracks_x[i]
-                if track.bo == Periodic
-                    # track.dir_next_track_bwd = 1 # TODO
-                    track.next_track_bwd[] = tracks[i][j + n_tracks_y[i]]
-                elseif track.bo == Vaccum || track.bo == Reflective
-                    # track.dir_next_track_bwd = 0 # TODO
-                    track.next_track_bwd[] = tracks[k][n_tracks_x[i] - j + 1]
-                end
+    i = AIdx
+    j = TIdx
+    k = suplementary_idx(azimuthal_quadrature, AIdx)
 
-            # these are the tracks that arrive to the y-axis
-            else
-                # track.dir_next_track_bwd = 1 # TODO
-                if track.bo == Periodic
-                    track.next_track_bwd[] = tracks[i][j - n_tracks_x[i]]
-                elseif track.bo == Vaccum || track.bo == Reflective
-                    track.next_track_bwd[] = tracks[k][j - n_tracks_x[i]]
-                end
-            end
+    # these are the tracks that arrive to the y-axis
+    if j ≤ n_tracks_y[i]
+        if BOut == Periodic
+            track.next_track_fwd = tracks[i][j + n_tracks_x[i]]
+        elseif BOut == Vaccum || BOut == Reflective
+            track.next_track_fwd = tracks[k][j + n_tracks_x[i]]
+        end
+    # these are the tracks that arrive to the top (superior x-axis)
+    else
+        if BOut == Periodic
+            track.next_track_fwd = tracks[i][j - n_tracks_y[i]]
+        elseif BOut == Vaccum || BOut == Reflective
+            track.next_track_fwd = tracks[k][n_tracks[i] + n_tracks_y[i] - j + 1]
         end
     end
 
-    # useful pointers for MoC solver
-    uid = 1
-    for i in 1:n_azim_2, j in 1:n_tracks[i]
-        tracks_by_uid[uid] = tracks[i][j]
-        uid += 1
+    return nothing
+end
+
+function next_track_bwd(t::TrackGenerator, track::Track)
+    @unpack azimuthal_quadrature, tracks = t
+    @unpack n_tracks_x, n_tracks_y, n_tracks = t
+
+    AIdx = azim_idx(track)
+    TIdx = track_idx(track)
+    BOut = boundary_out(track)
+
+    i = AIdx
+    j = TIdx
+    k = suplementary_idx(azimuthal_quadrature, AIdx)
+
+    # these are the tracks that arrive to the bottom (inferior x-axis)
+    if j ≤ n_tracks_x[i]
+        if BOut == Periodic
+            track.next_track_bwd = tracks[i][j + n_tracks_y[i]]
+        elseif BOut == Vaccum || BOut == Reflective
+            track.next_track_bwd = tracks[k][n_tracks_x[i] - j + 1]
+        end
+    # these are the tracks that arrive to the y-axis
+    else
+        if BOut == Periodic
+            track.next_track_bwd = tracks[i][j - n_tracks_x[i]]
+        elseif BOut == Vaccum || BOut == Reflective
+            track.next_track_bwd = tracks[k][j - n_tracks_x[i]]
+        end
     end
 
-    return t
+    return nothing
 end
 
 """

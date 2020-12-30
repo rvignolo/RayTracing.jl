@@ -26,12 +26,14 @@ end
 
 # We could use LazySets.jl for some part of this particular function but it seems slow!
 """
-    intersections(mesh::Mesh, cell_id::Int, track::Track, tiny_step::Real)
+    intersections(mesh::Mesh, cell_id::Int, track::Track)
 
 Computes the entry and exit points of a given `track` that is known to cross element with id
 `cell_id`.
 """
-function intersections(mesh::Mesh, cell_id::Int32, track::Track{T}) where {T}
+function intersections(
+    mesh::Mesh, cell_id::Int32, track::Track{UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd,T}
+) where {UId,AIdx,TIdx,BIn,BOut,DFwd,DBwd,T}
     @unpack model, cell_nodes = mesh
 
     node_coordinates = get_node_coordinates(get_grid(model))
@@ -55,12 +57,12 @@ function intersections(mesh::Mesh, cell_id::Int32, track::Track{T}) where {T}
         ABC = general_form(p1, p2)
 
         # compute intersections between track and element face
-        parallel_side, x_int = intersection(track.ABC, ABC)
+        are_parallel, x_int = intersection(track.ABC, ABC)
 
         # if the track is parallel to the element face, it can be on top of it or do not
         # cross at all. Either way, we just ignore this case because we can compute the
         # intersections using the other faces.
-        if parallel_side
+        if are_parallel
             parallel_found = true
             continue
 
@@ -124,15 +126,13 @@ function intersection(ABC1::AbstractVector, ABC2::AbstractVector)
     a = ABC1[2] * ABC2[1]
     b = ABC2[2] * ABC1[1]
     x = y = zero(a)
-    if isapprox(a, b)
-        parallels = true
-    else
+    are_parallel = isapprox(a, b)
+    if !are_parallel
         det = a - b
         x = (ABC1[3] * ABC2[2] - ABC2[3] * ABC1[2]) / det
         y = (ABC1[1] * ABC2[3] - ABC2[1] * ABC1[3]) / det
-        parallels = false
     end
-    return parallels, Point2D(x, y)
+    return are_parallel, Point2D(x, y)
 end
 
 # this one returns a matrix even if F is not invertible (have the same speed as the above)
