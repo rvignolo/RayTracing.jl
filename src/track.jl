@@ -23,14 +23,14 @@ mutable struct Track{BIn,BOut,DFwd,DBwd,T<:Real}
     ℓ::T
 
     ABC::SVector{3,T}
-    segments::Vector{Segment}
+    segments::Vector{Segment{T}}
 
     next_track_fwd::Track
     next_track_bwd::Track
 
     function Track{BIn,BOut,DFwd,DBwd}(
         uid::Int, azim_idx::Int, track_idx::Int, p::Point2D{T}, q::Point2D{T}, ϕ::T, ℓ::T,
-        ABC::SVector{3,T}, segments::Vector{Segment}
+        ABC::SVector{3,T}, segments::Vector{Segment{T}}
     ) where {BIn,BOut,DFwd,DBwd,T}
         track = new{BIn,BOut,DFwd,DBwd,T}(uid, azim_idx, track_idx, p, q, ϕ, ℓ, ABC, segments)
         track.next_track_fwd = track

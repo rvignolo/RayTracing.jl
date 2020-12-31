@@ -201,7 +201,7 @@ function trace!(t::TrackGenerator{T}) where {T}
             ℓ = norm(p - q)
 
             ABC = general_form(p, q)
-            segments = Vector{Segment}(undef, 0)
+            segments = Vector{Segment{T}}(undef, 0)
 
             bi = boundary_condition(p, sides, bcs)
             bo = boundary_condition(q, sides, bcs)
