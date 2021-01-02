@@ -8,10 +8,13 @@ struct Segment{T<:Real}
     p::Point2D{T}
     q::Point2D{T}
     ℓ::T
+    τ::Vector{T}
     element::Int32 # TODO: deberia llamarlo cell_id o algo asi
 end
 
-Segment(p::Point2D, q::Point2D, element::Int32=Int32(-1)) = Segment(p, q, norm(p - q), element)
+function Segment(p::Point2D{T}, q::Point2D{T}, element::Int32=Int32(-1)) where {T}
+    return Segment(p, q, norm(p - q), Vector{T}(undef, 0), element)
+end
 
 in(x::Point2D, segment::Segment) = point_in_segment(segment.p, segment.q, x)
 
