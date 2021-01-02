@@ -322,5 +322,50 @@ function segmentize!(t::TrackGenerator)
     for track in tracks_by_uid
         _segmentize_track!(t, track)
     end
+
+    # correct segments using @set!
+    fill_volumes(t, 1)
+
     return t
+end
+
+function fill_volumes(t::TrackGenerator{T}, i) where {T}
+    @unpack tracks_by_uid, azimuthal_quadrature, volumes = t
+    @unpack n_azim_2, δs = azimuthal_quadrature
+
+    fill!(volumes, zero(T))
+
+    for track in tracks_by_uid
+        a = track.azim_idx
+        for segment in track.segments
+            i = segment.element
+            volumes[i] += δs[a] * segment.ℓ
+        end
+    end
+
+    volumes ./= n_azim_2
+
+    #### TODO: correct volumes by changing segment lengths #####
+    @unpack mesh = t
+    @unpack model, cell_nodes = mesh
+    ncells = num_cells(model)
+    volumes2 = Vector{T}(undef, ncells)
+    fill!(volumes2, zero(T))
+    for i in 1:ncells
+        node_ids = cell_nodes[i]
+        volumes2[i] = element_volume(mesh, node_ids)
+    end
+
+    return nothing
+end
+
+function element_volume(mesh, node_ids)
+    @unpack model = mesh
+    node_coordinates = get_node_coordinates(get_grid(model))
+
+    x1 = node_coordinates[node_ids[1]]
+    x2 = node_coordinates[node_ids[2]]
+    x3 = node_coordinates[node_ids[3]]
+
+    return 1 / 2 * abs((x2 - x1) × (x3 - x1))
 end

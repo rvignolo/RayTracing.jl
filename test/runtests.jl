@@ -39,6 +39,9 @@ end
 
     tg = TrackGenerator(model, 8, 0.2)
     trace!(tg)
+    @test_broken segmentize!(tg) == error("This is an unexpected case. Please, submit an issue.")
 
+    tg = TrackGenerator(model, 16, 0.002)
+    trace!(tg)
     @test_broken segmentize!(tg) == error("This is an unexpected case. Please, submit an issue.")
 end
