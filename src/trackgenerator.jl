@@ -323,7 +323,6 @@ function segmentize!(t::TrackGenerator)
         _segmentize_track!(t, track)
     end
 
-    # correct segments using @set!
     fill_volumes(t, 1)
 
     return t
