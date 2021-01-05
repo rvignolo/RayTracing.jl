@@ -106,7 +106,8 @@ function intersections(
 
         if isapprox(x_int1, x_int2)
             # this never happened to me, but just to be sure.
-            error("This is an unexpected case. Please, submit an issue.")
+            # error("This is an unexpected case. Please, submit an issue.")
+            return x_int1, x_int2
         else
             return order_intersection_points(track, x_int1, x_int2)
         end

@@ -33,15 +33,12 @@ model = DiscreteModelFromFile(jsonfile)
             @test isapprox(track.q, track.segments[end].q)
         end
     end
-end
 
-@testset "Broken cases" begin
-
-    tg = TrackGenerator(model, 8, 0.2)
-    trace!(tg)
-    @test_broken segmentize!(tg) == error("This is an unexpected case. Please, submit an issue.")
-
-    tg = TrackGenerator(model, 16, 0.002)
-    trace!(tg)
-    @test_broken segmentize!(tg) == error("This is an unexpected case. Please, submit an issue.")
+    @testset "Track length" begin
+        for track in tg.tracks_by_uid
+            l1 = track.ℓ
+            l2 = sum(RayTracing.ℓ.(track.segments))
+            @test isapprox(l1, l2)
+        end
+    end
 end

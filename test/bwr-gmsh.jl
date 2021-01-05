@@ -84,7 +84,7 @@ for (i, j) in ((2, 3), (3, 2))
     push!(cladTags, cladTag)
 end
 
-# h2oTag = add_reflector!(gmsh, 4p)
+#! TODO: h2oTag = add_reflector!(gmsh, 4p)
 s = 4p
 factory = gmsh.model.geo
 
@@ -102,18 +102,23 @@ cl1 = factory.addCurveLoop([l1, l2, l3, l4])
 
 h2oTag = factory.addPlaneSurface(vcat(cl1, pinTags, cladTags, gdTags))
 
-
-
 pg1 = gmsh.model.geo.addPhysicalGroup(2, pinTags) #! change "pin" to "fuel"
 pg2 = gmsh.model.geo.addPhysicalGroup(2, cladTags)
 pg3 = gmsh.model.geo.addPhysicalGroup(2, gdTags)
 pg4 = gmsh.model.geo.addPhysicalGroup(2, [h2oTag])
+pg5 = gmsh.model.geo.addPhysicalGroup(1, [l1])
+pg6 = gmsh.model.geo.addPhysicalGroup(1, [l2])
+pg7 = gmsh.model.geo.addPhysicalGroup(1, [l3])
+pg8 = gmsh.model.geo.addPhysicalGroup(1, [l4])
 
 gmsh.model.setPhysicalName(2, pg1, "pin") #! change "pin" to "fuel"
 gmsh.model.setPhysicalName(2, pg2, "cladding")
-gmsh.model.setPhysicalName(2, pg3, "poison")
+gmsh.model.setPhysicalName(2, pg3, "pin-gd")
 gmsh.model.setPhysicalName(2, pg4, "water")
-
+gmsh.model.setPhysicalName(1, pg5, "bottom")
+gmsh.model.setPhysicalName(1, pg6, "right")
+gmsh.model.setPhysicalName(1, pg7, "top")
+gmsh.model.setPhysicalName(1, pg8, "left")
 
 # removemos puntos de la geometria duplicados (origenes por ejemplo)
 gmsh.model.geo.removeAllDuplicates()
@@ -124,48 +129,34 @@ gmsh.model.mesh.generate(2)
 
 gmsh.write("bwr.msh")
 
-
-
-
-
-
-# square cell
-factory.addPoint(0, 0, 0, lc, 10)
-factory.addPoint(p, 0, 0, lc, 11)
-factory.addPoint(p, p, 0, lc, 12)
-factory.addPoint(0, p, 0, lc, 13)
-factory.addLine(10, 11,  9)
-factory.addLine(11, 12, 10)
-factory.addLine(12, 13, 11)
-factory.addLine(13, 10, 12)
-factory.addCurveLoop([9, 10, 11, 12], 3)
-
-factory.addPlaneSurface([1], 1)
-factory.addPlaneSurface([2, 1], 2) # le agrego el hole `1` (no estoy teniendo en cuenta nada de sentidos de giro, no se si hay que hacerlo)
-factory.addPlaneSurface([3, 2, 1], 3)
-
-# materials
-factory.addPhysicalGroup(2, [1], 1)
-factory.addPhysicalGroup(2, [2], 2)
-factory.addPhysicalGroup(2, [3], 3)
-GridapGmsh.gmsh.model.setPhysicalName(2, 1, "pin")
-GridapGmsh.gmsh.model.setPhysicalName(2, 2, "cladding")
-GridapGmsh.gmsh.model.setPhysicalName(2, 3, "water")
-
-# boundaries
-factory.addPhysicalGroup(1,  [9], 4)
-factory.addPhysicalGroup(1, [10], 5)
-factory.addPhysicalGroup(1, [11], 6)
-factory.addPhysicalGroup(1, [12], 7)
-GridapGmsh.gmsh.model.setPhysicalName(1, 4, "bottom")
-GridapGmsh.gmsh.model.setPhysicalName(1, 5, "right")
-GridapGmsh.gmsh.model.setPhysicalName(1, 6, "top")
-GridapGmsh.gmsh.model.setPhysicalName(1, 7, "left")
-
-
-
 if !("-nopopup" in ARGS)
     gmsh.fltk.run()
 end
 
 gmsh.finalize()
+
+using Gridap
+mshfile = joinpath(@__DIR__,"../bwr.msh")
+model = GmshDiscreteModel(mshfile; renumber=true)
+Gridap.Io.to_json_file(model, "bwr.json")
+
+jsonfile = joinpath(@__DIR__,"../bwr.json")
+model = DiscreteModelFromFile(jsonfile)
+
+# number of azimuthal angles
+nφ = 16
+
+# azimuthal spacing
+δ = 0.002
+
+# boundary conditions
+bcs = BoundaryConditions(top=Reflective, bottom=Reflective, left=Reflective, right=Reflective)
+
+# initialize track generator
+tg = TrackGenerator(model, nφ, δ, bcs=bcs)
+
+# perform ray tracing
+trace!(tg)
+
+# proceed to segmentation
+segmentize!(tg)

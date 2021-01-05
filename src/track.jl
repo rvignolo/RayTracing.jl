@@ -115,6 +115,12 @@ function _segmentize_track!(t, track::Track, k::Int=5) # t::TrackGenerator
         # compute intersections between track and the element
         p, q = intersections(mesh, element, track)
 
+        # we might be in a vertex, so we just continue
+        if isapprox(p, q)
+            xp = advance_step(xp, tiny_step, ϕ)
+            continue
+        end
+
         segment = Segment(p, q, element)
         push!(segments, segment)
 
@@ -123,6 +129,10 @@ function _segmentize_track!(t, track::Track, k::Int=5) # t::TrackGenerator
         prev_element = element
 
         i += 1 # just for safety
+    end
+
+    if !isapprox(track.ℓ, sum(ℓ.(track.segments)))
+        error("track length do not match sum of segments lengths.")
     end
 
     return nothing
