@@ -25,7 +25,9 @@ end
 
 function show(io::IO, t::TrackGenerator)
     @unpack azimuthal_quadrature, n_total_tracks, correct_volumes = t
-    @unpack n_azim_2, δs, ϕs = azimuthal_quadrature
+    @unpack δs, ϕs = azimuthal_quadrature
+    n_azim_2 = nazim2(azimuthal_quadrature)
+
     # println(io, typeof(t))
     println(io, "  Number of azimuthal angles in (0, π): ", n_azim_2)
     println(io, "  Azimuthal angles in (0, π): ", round.(rad2deg.(ϕs), digits=2))
@@ -54,18 +56,12 @@ function TrackGenerator(
     bcs::BoundaryConditions=BoundaryConditions(), tiny_step::T=1e-8, correct_volumes=false
 ) where {T<:Real}
 
-    n_azim > 0 || throw(DomainError(n_azim, "number of azimuthal angles must be > 0."))
-    iszero(rem(n_azim, 4)) || throw(DomainError(n_azim, "number of azimuthal angles must " *
-                                                        "be a multiple of 4."))
-    δ > 0 || throw(DomainError(δ, "azimuthal spacing must be > 0."))
-
     mesh = Mesh(model)
-
     Δx, Δy = width(mesh), height(mesh)
 
-    azimuthal_quadrature = AzimuthalQuadrature(n_azim, δ)
-
-    @unpack n_azim_2, n_azim_4 = azimuthal_quadrature
+    azimuthal_quadrature = AzimuthalQuadrature(Val(n_azim), δ)
+    n_azim_2 = nazim2(azimuthal_quadrature)
+    n_azim_4 = nazim4(azimuthal_quadrature)
 
     n_tracks_x = Vector{Int}(undef, n_azim_2)
     n_tracks_y = Vector{Int}(undef, n_azim_2)
@@ -114,7 +110,10 @@ function trace!(t::TrackGenerator{T}) where {T}
     @unpack n_tracks_x, n_tracks_y, n_tracks = t
     @unpack tracks, tracks_by_uid = t
     @unpack bbmin, bbmax = mesh
-    @unpack n_azim_2, n_azim_4, δs, ϕs, ωₐ = azimuthal_quadrature
+    @unpack δs, ϕs, ωₐ = azimuthal_quadrature
+
+    n_azim_2 = nazim2(azimuthal_quadrature)
+    n_azim_4 = nazim4(azimuthal_quadrature)
 
     # effective azimuthal spacings, used for some computations but not stored
     δx = Vector{T}(undef, n_azim_2)
@@ -330,7 +329,8 @@ end
 
 function fill_volumes(t::TrackGenerator{T}, i) where {T}
     @unpack tracks_by_uid, azimuthal_quadrature, volumes = t
-    @unpack n_azim_2, δs = azimuthal_quadrature
+    @unpack δs = azimuthal_quadrature
+    n_azim_2 = nazim2(azimuthal_quadrature)
 
     fill!(volumes, zero(T))
 

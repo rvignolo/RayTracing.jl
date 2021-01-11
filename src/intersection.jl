@@ -105,8 +105,8 @@ function intersections(
         x_int2 = int_points[2]
 
         if isapprox(x_int1, x_int2)
-            # this never happened to me, but just to be sure.
-            # error("This is an unexpected case. Please, submit an issue.")
+            # do nothing and move a tiny step forward in the parent function, we are on a
+            # vertex
             return x_int1, x_int2
         else
             return order_intersection_points(track, x_int1, x_int2)
@@ -150,7 +150,6 @@ end
 function order_intersection_points(track::Track, x1::Point2D, x2::Point2D)
     @unpack ϕ = track
 
-    # TODO: look at n_azim_index instead of ϕ
     if isless(ϕ, π/2)
         if x1[1] < x2[1]
             xi = x1
