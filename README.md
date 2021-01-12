@@ -15,7 +15,7 @@ Then, define an `UnstructuredDiscreteModel`:
 ```julia
 using GridapGmsh: GmshDiscreteModel
 
-mshfile = joinpath(@__DIR__,"demo","pincell.msh")
+mshfile = joinpath(@__DIR__, "demo", "pincell.msh")
 model = GmshDiscreteModel(mshfile; renumber=true)
 ```
 and perform a ray tracing over such object:
