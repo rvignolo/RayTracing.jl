@@ -52,9 +52,10 @@ function add_square!(gmsh, s)
     return cl1
 end
 
+N = 4
+
 # in cm
 p = 1.6        # pitch
-p_2 = p / 2    # pitch / 2
 ri = 0.5       # internal radius
 t = 0.1        # wall thickness
 ro = ri + t    # external radius
@@ -62,30 +63,30 @@ lc = 0.1
 
 gmsh.initialize()
 gmsh.model.add("bwr")
+
+# tags
 pinTags = Int32[]
 cladTags = Int32[]
-for i in 1:4, j in 1:4
-    if (i, j) == (2, 3) || (i, j) == (3, 2)
-        continue
-    end
-    xo = p_2 + (i - 1) * p
-    yo = p_2 + (j - 1) * p
-    pinTag, cladTag = add_pin!(gmsh, (xo, yo), ri, t, lc)
-    push!(pinTags, pinTag)
-    push!(cladTags, cladTag)
-end
+gdPinTags = Int32[]
 
-gdTags = Int32[]
-for (i, j) in ((2, 3), (3, 2))
-    xo = p_2 + (i - 1) * p
-    yo = p_2 + (j - 1) * p
-    gdTag, cladTag = add_pin!(gmsh, (xo, yo), ri, t, lc)
-    push!(gdTags, gdTag)
+# gd pins positions
+GD_pos = [(2, 3), (3, 2)]
+
+for i in 1:N, j in 1:N
+    xo = p / 2 + (i - 1) * p
+    yo = p / 2 + (j - 1) * p
+
+    pinTag, cladTag = add_pin!(gmsh, (xo, yo), ri, t, lc)
     push!(cladTags, cladTag)
+    if (i, j) in GD_pos
+        push!(gdPinTags, pinTag)
+    else
+        push!(pinTags, pinTag)
+    end
 end
 
 #! TODO: h2oTag = add_reflector!(gmsh, 4p)
-s = 4p
+s = N * p
 factory = gmsh.model.geo
 
 p1 = factory.addPoint(0, 0, 0, lc)
@@ -100,18 +101,18 @@ l4 = factory.addLine(p4, p1)
 
 cl1 = factory.addCurveLoop([l1, l2, l3, l4])
 
-h2oTag = factory.addPlaneSurface(vcat(cl1, pinTags, cladTags, gdTags))
+h2oTag = factory.addPlaneSurface(vcat(cl1, pinTags, cladTags, gdPinTags))
 
-pg1 = gmsh.model.geo.addPhysicalGroup(2, pinTags) #! change "pin" to "fuel"
+pg1 = gmsh.model.geo.addPhysicalGroup(2, pinTags)
 pg2 = gmsh.model.geo.addPhysicalGroup(2, cladTags)
-pg3 = gmsh.model.geo.addPhysicalGroup(2, gdTags)
+pg3 = gmsh.model.geo.addPhysicalGroup(2, gdPinTags)
 pg4 = gmsh.model.geo.addPhysicalGroup(2, [h2oTag])
 pg5 = gmsh.model.geo.addPhysicalGroup(1, [l1])
 pg6 = gmsh.model.geo.addPhysicalGroup(1, [l2])
 pg7 = gmsh.model.geo.addPhysicalGroup(1, [l3])
 pg8 = gmsh.model.geo.addPhysicalGroup(1, [l4])
 
-gmsh.model.setPhysicalName(2, pg1, "pin") #! change "pin" to "fuel"
+gmsh.model.setPhysicalName(2, pg1, "pin")
 gmsh.model.setPhysicalName(2, pg2, "cladding")
 gmsh.model.setPhysicalName(2, pg3, "pin-gd")
 gmsh.model.setPhysicalName(2, pg4, "water")

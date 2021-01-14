@@ -96,12 +96,6 @@ function _segmentize_track!(t, track::Track, k::Int=5) # t::TrackGenerator
             end
         end
 
-        # move a step if the new element is the same as the previous one
-        if isequal(prev_element, element)
-            xp = advance_step(xp, tiny_step, ϕ)
-            continue
-        end
-
         # if we are inside the domain and `find_element` did not return an element, we might
         # be dealing with a deformed mesh, so we might need to increase the knn search.
         if isequal(element, -1)
@@ -110,6 +104,12 @@ function _segmentize_track!(t, track::Track, k::Int=5) # t::TrackGenerator
                 error("Try increasing `k`. If the problem persists, raise an issue, this " *
                       "might be a case that hasn't been presented before.")
             end
+        end
+
+        # move a step if the new element is the same as the previous one
+        if isequal(prev_element, element)
+            xp = advance_step(xp, tiny_step, ϕ)
+            continue
         end
 
         # compute intersections between track and the element
