@@ -5,13 +5,13 @@
 end
 
 """
-    Track{BIn,BOut,DFwd,DBwd,T<:Real}
+    Track{BCFwd,BOut,DFwd,DBwd,T<:Real}
 
 Represents a neutron trajectory across the domain, with certain azimuthal angle `ϕ`, entry
 and exit points `p` and `q`, length `ℓ` and formed by `segments` coming from its
 segmentation.
 """
-mutable struct Track{BIn,BOut,DFwd,DBwd,T<:Real}
+mutable struct Track{BCFwd,BCBwd,DFwd,DBwd,T<:Real}
     uid::Int
     azim_idx::Int
     track_idx::Int
@@ -28,11 +28,20 @@ mutable struct Track{BIn,BOut,DFwd,DBwd,T<:Real}
     next_track_fwd::Track
     next_track_bwd::Track
 
-    function Track{BIn,BOut,DFwd,DBwd}(
-        uid::Int, azim_idx::Int, track_idx::Int, p::Point2D{T}, q::Point2D{T}, ϕ::T, ℓ::T,
-        ABC::SVector{3,T}, segments::Vector{Segment{T}}
-    ) where {BIn,BOut,DFwd,DBwd,T}
-        track = new{BIn,BOut,DFwd,DBwd,T}(uid, azim_idx, track_idx, p, q, ϕ, ℓ, ABC, segments)
+    function Track{BCFwd,BCBwd,DFwd,DBwd}(
+        uid::Int,
+        azim_idx::Int,
+        track_idx::Int,
+        p::Point2D{T},
+        q::Point2D{T},
+        ϕ::T,
+        ℓ::T,
+        ABC::SVector{3,T},
+        segments::Vector{Segment{T}}
+    ) where {BCFwd,BCBwd,DFwd,DBwd,T}
+        track = new{BCFwd,BCBwd,DFwd,DBwd,T}(
+            uid, azim_idx, track_idx, p, q, ϕ, ℓ, ABC, segments
+        )
         track.next_track_fwd = track
         track.next_track_bwd = track
         return track
@@ -42,10 +51,10 @@ end
 universal_id(track::Track) = track.uid
 azim_idx(track::Track) = track.azim_idx
 track_idx(track::Track) = track.track_idx
-boundary_in(::Track{BIn}) where {BIn} = BIn
-boundary_out(::Track{BIn,BOut}) where {BIn,BOut} = BOut
-dir_next_track_fwd(::Track{BIn,BOut,DFwd}) where {BIn,BOut,DFwd} = DFwd
-dir_next_track_bwd(::Track{BIn,BOut,DFwd,DBwd}) where {BIn,BOut,DFwd,DBwd} = DBwd
+bc_fwd(::Track{BCFwd}) where {BCFwd} = BCFwd
+bc_bwd(::Track{BCFwd,BCBwd}) where {BCFwd,BCBwd} = BCBwd
+dir_next_track_fwd(::Track{BCFwd,BCBwd,DFwd}) where {BCFwd,BCBwd,DFwd} = DFwd
+dir_next_track_bwd(::Track{BCFwd,BCBwd,DFwd,DBwd}) where {BCFwd,BCBwd,DFwd,DBwd} = DBwd
 
 function show(io::IO, track::Track)
     @unpack ϕ, p, q, ℓ, segments = track
@@ -55,8 +64,8 @@ function show(io::IO, track::Track)
     println(io, "  Exit point: ", q)
     println(io, "  Length: ", ℓ)
     println(io, "  # of segments: ", length(segments)) # if it is zero, run segmentize!
-    println(io, "  Boundary at entry: ", boundary_in(track))
-    print(io,   "  Boundary at exit: ", boundary_out(track))
+    println(io, "  Boundary fwd: ", bc_fwd(track))
+    print(io,   "  Boundary bwd: ", bc_bwd(track))
     # avoid printing circular references (since it is a cyclic ray tracing...)
     # println(io, "  Next track fwd: ", next_track_fwd)
     # print(io,   "  Next track fwd: ", next_track_bwd)

@@ -1,7 +1,7 @@
 
 # TODO: Plots.jl seems slow for these kind of plots (many segments). Use ParaView instead?
 
-@recipe function plot(t::TrackGenerator{M,Q,T}) where {M,Q,T}
+@recipe function plot(t::TrackGenerator{T}) where {T}
     @unpack tracks_by_uid, n_total_tracks = t
 
     x = Matrix{T}(undef, 2, n_total_tracks)
@@ -9,10 +9,10 @@
 
     for j in 1:n_total_tracks
         track = tracks_by_uid[j]
-        x[1, j] = track.xi[1]
-        x[2, j] = track.xo[1]
-        y[1, j] = track.xi[2]
-        y[2, j] = track.xo[2]
+        x[1, j] = track.p[1]
+        x[2, j] = track.q[1]
+        y[1, j] = track.p[2]
+        y[2, j] = track.q[2]
     end
 
     seriestype  :=  :path
@@ -31,10 +31,10 @@ end
     z = Matrix{Float64}(undef, 2, n)
 
     for (i, segment) in enumerate(segments)
-        x[1, i] = segment.xi[1]
-        x[2, i] = segment.xo[1]
-        y[1, i] = segment.xi[2]
-        y[2, i] = segment.xo[2]
+        x[1, i] = segment.p[1]
+        x[2, i] = segment.q[1]
+        y[1, i] = segment.p[2]
+        y[2, i] = segment.q[2]
         z[1, i] = segment.element
         z[2, i] = segment.element
     end
@@ -58,8 +58,8 @@ end
 
     for track in tracks
         for segment in track.segments
-            x = hcat(x, [segment.xi[1], segment.xo[1]])
-            y = hcat(y, [segment.xi[2], segment.xo[2]])
+            x = hcat(x, [segment.p[1], segment.q[1]])
+            y = hcat(y, [segment.p[2], segment.q[2]])
             z = hcat(z, [segment.element, segment.element])
         end
     end

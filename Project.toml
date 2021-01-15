@@ -1,7 +1,7 @@
 name = "RayTracing"
 uuid = "3007c720-8091-40db-9339-e09e4eb4c7ea"
 authors = ["Ramiro Vignolo <ramirovignolo@gmail.com>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 Gridap = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"

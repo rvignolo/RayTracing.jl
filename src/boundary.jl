@@ -25,7 +25,7 @@ function boundary_condition(x::Point2D, sides, bcs::BoundaryConditions)
     elseif x in sides.left
         bc = bcs.left
     else
-        error("Entry or exit point do not lie in the mesh boundary.")
+        error("Point do not lie in the boundary.")
     end
 
     return bc

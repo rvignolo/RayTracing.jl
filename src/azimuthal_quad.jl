@@ -57,7 +57,7 @@ right_dir(::AzimuthalQuadrature{N,T,N2,N4}) where {N,T,N2,N4} = 1:N4
 left_dir(::AzimuthalQuadrature{N,T,N2,N4}) where {N,T,N2,N4} = (N4+1):N2
 both_dir(::AzimuthalQuadrature{N,T,N2}) where {N,T,N2} = 1:N2
 
-points_right(::AzimuthalQuadrature{N,T,N2,N4}, i) where {N,T,N2,N4} = i <= N4
+points_right(::AzimuthalQuadrature{N,T,N2,N4}, i) where {N,T,N2,N4} = i ≤ N4
 points_left(aq::AzimuthalQuadrature, i) = !points_right(aq, i)
 
 suplementary_idx(::AzimuthalQuadrature{N,T,N2}, i) where {N,T,N2} = N2 - i + 1
