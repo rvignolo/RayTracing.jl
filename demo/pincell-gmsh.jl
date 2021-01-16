@@ -82,4 +82,10 @@ if !("-nopopup" in ARGS)
     gmsh.fltk.run()
 end
 
-gmsh.finalize()
+gmsh.finalize
+
+# move to json file format
+using GridapGmsh: GmshDiscreteModel
+mshfile = joinpath(@__DIR__,"pincell.msh")
+model = GmshDiscreteModel(mshfile; renumber=true)
+Gridap.Io.to_json_file(model, "pincell.json")
