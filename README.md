@@ -22,10 +22,6 @@ julia> import Pkg; Pkg.add("RayTracing")
 
 Create a `gmsh` mesh using any available tool of your choice (checkout [GridapGmsh.jl](https://github.com/gridap/GridapGmsh.jl) for convenience). For example, [this](demo/pincell-gmsh.jl) file shows the definition of a simple *pin-cell* geometry. Then, the ray tracing consists in two steps, namely, the track tracing and the segmentation of those tracks.
 
-| ![](demo/pincell-msh.png) | ![](demo/pincell-tracks.png) | ![](demo/pincell-segments.png) |
-|:-------------:|:-------------:|:-------------:|
-| Geometry / Mesh | Tracks | Segments |
-
 ```julia
 using RayTracing
 using GridapGmsh: GmshDiscreteModel
@@ -50,4 +46,6 @@ trace!(tg)
 segmentize!(tg)
 ```
 
-A sample can be checked out [here](demo/pincell.jl).
+| ![](demo/pincell-msh.png) | ![](demo/pincell-tracks.png) | ![](demo/pincell-segments.png) |
+|:-------------:|:-------------:|:-------------:|
+| Geometry / Mesh | Tracks | Segments |
