@@ -23,12 +23,12 @@
     return (x, y)
 end
 
-@recipe function plot(segments::Vector{Segment})
+@recipe function plot(segments::Vector{Segment{T}}) where {T}
 
     n = length(segments)
-    x = Matrix{Float64}(undef, 2, n) # TODO: compute Float64
-    y = Matrix{Float64}(undef, 2, n)
-    z = Matrix{Float64}(undef, 2, n)
+    x = Matrix{T}(undef, 2, n) # TODO: compute Float64
+    y = Matrix{T}(undef, 2, n)
+    z = Matrix{T}(undef, 2, n)
 
     for (i, segment) in enumerate(segments)
         x[1, i] = segment.p[1]

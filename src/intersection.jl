@@ -112,8 +112,9 @@ function intersections(
             return order_intersection_points(track, x_int1, x_int2)
         end
     elseif iszero(n_int) || isone(n_int)
-        # this never happened to me, but just to be sure.
-        error("This is an unexpected case. Please, submit an issue.")
+        # the parent function will move a tiny step further
+        return Point2D{T}(0, 0), Point2D{T}(0, 0)
+        # error("This is an unexpected case. Please, submit an issue.")
     end
 end
 

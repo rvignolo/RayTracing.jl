@@ -75,7 +75,7 @@ end
 # the segmentation of tracks, let's have this maximum number of iterations.
 const MAX_ITER = 10_000
 
-function _segmentize_track!(t, track::Track, k::Int=5) # t::TrackGenerator
+function _segmentize_track!(t, track::Track, k::Int, rtol::Real) # t::TrackGenerator
     @unpack mesh, tiny_step = t
     @unpack ϕ, segments = track
 
@@ -140,8 +140,10 @@ function _segmentize_track!(t, track::Track, k::Int=5) # t::TrackGenerator
         i += 1 # just for safety
     end
 
-    if !isapprox(track.ℓ, sum(ℓ.(track.segments)))
-        error("track length do not match sum of segments lengths.")
+    if !isapprox(track.ℓ, sum(ℓ.(track.segments)); rtol=rtol)
+        error("Track with `uid` $(string(track.uid)) has a length that do not match the " *
+              "sum of its segments lengths with the provided tolerance `rtol`. Check " *
+              "whether this is an actual error or increase `rtol`.")
     end
 
     return nothing
