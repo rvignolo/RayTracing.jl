@@ -156,7 +156,7 @@ function trace!(t::TrackGenerator{T}) where {T}
         # get azimuthal angle
         ϕ = ϕs[i]
 
-        # for all tracks in a given azimuthal direction
+        # for all tracks in a given azimuthal direction `i`
         for j in 1:n_tracks[i]
 
             if origins_in_x(n_tracks_x, i, j)

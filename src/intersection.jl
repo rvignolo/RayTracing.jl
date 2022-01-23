@@ -137,7 +137,7 @@ function intersection(ABC1::AbstractVector, ABC2::AbstractVector)
     return are_parallel, Point2D(x, y)
 end
 
-# this one returns a matrix even if F is not invertible (have the same speed as the above)
+# this one returns a matrix even if F is not invertible (has the same speed as the above)
 # function intersection(ABC1, ABC2)
 #     F = @SMatrix [ABC1[1] ABC1[2]
 #                   ABC2[1] ABC2[2]]
