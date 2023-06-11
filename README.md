@@ -46,6 +46,6 @@ trace!(tg)
 segmentize!(tg)
 ```
 
-| ![](demo/pincell-msh.png) | ![](demo/pincell-tracks.png) | ![](demo/pincell-segments.png) |
+| ![](demo/pincell-msh.png) | ![](demo/cyclic_track.gif) | ![](demo/pincell-segments.png) |
 |:-------------:|:-------------:|:-------------:|
 | Geometry / Mesh | Tracks | Segments |
