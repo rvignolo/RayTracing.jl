@@ -33,7 +33,7 @@ function show(io::IO, t::TrackGenerator)
     println(io, "  Azimuthal angles in (0, π): ", round.(rad2deg.(ϕs), digits=2))
     println(io, "  Effective azimuthal spacings: ", round.(δs, digits=3))
     println(io, "  Total tracks: ", n_total_tracks)
-    print(io,   "  Correct volumes: ", correct_volumes)
+    print(io, "  Correct volumes: ", correct_volumes)
 end
 
 origins_in_x(n_tracks_x, i, j) = j ≤ n_tracks_x[i]
@@ -65,7 +65,7 @@ function TrackGenerator(
 
     n_tracks_x = Vector{Int}(undef, n_azim_2)
     n_tracks_y = Vector{Int}(undef, n_azim_2)
-    n_tracks   = Vector{Int}(undef, n_azim_2)
+    n_tracks = Vector{Int}(undef, n_azim_2)
 
     for i in right_dir(azimuthal_quadrature)
         φ = π / n_azim_2 * (i - 1 / 2)
@@ -148,7 +148,7 @@ function trace!(t::TrackGenerator{T}) where {T}
     p3 = bbmax
     p4 = Point2D(bbmax[1], bbmin[2])
     sides = (top=Segment(p2, p3), bottom=Segment(p4, p1),
-             right=Segment(p3, p4), left=Segment(p1, p2))
+        right=Segment(p3, p4), left=Segment(p1, p2))
 
     uid = 1
     for i in both_dir(azimuthal_quadrature)
@@ -184,7 +184,7 @@ function trace!(t::TrackGenerator{T}) where {T}
                 if points_right(azimuthal_quadrature, i)
                     q = Point2D(Δx, p[2] + m * (Δx - p[1]))
 
-                # or it can exit at x = 0 if it points to the left
+                    # or it can exit at x = 0 if it points to the left
                 else
                     q = Point2D(0, p[2] - m * p[1])
                 end
@@ -207,33 +207,11 @@ function trace!(t::TrackGenerator{T}) where {T}
 
             # alternative method
             if points_right(azimuthal_quadrature, i)
-
-                if j ≤ n_tracks_y[i]
-                    BCFwd1 = bcs.right
-                else
-                    BCFwd1 = bcs.top
-                end
-
-                if j ≤ n_tracks_x[i]
-                    BCBwd1 = bcs.bottom
-                else
-                    BCBwd1 = bcs.left
-                end
-
+                BCFwd1 = j ≤ n_tracks_y[i] ? bcs.right : bcs.top
+                BCBwd1 = j ≤ n_tracks_x[i] ? bcs.bottom : bcs.left
             else
-
-                if j ≤ n_tracks_y[i]
-                    BCFwd1 = bcs.left
-                else
-                    BCFwd1 = bcs.top
-                end
-
-                if j ≤ n_tracks_x[i]
-                    BCBwd1 = bcs.bottom
-                else
-                    BCBwd1 = bcs.right
-                end
-
+                BCFwd1 = j ≤ n_tracks_y[i] ? bcs.left : bcs.top
+                BCBwd1 = j ≤ n_tracks_x[i] ? bcs.bottom : bcs.right
             end
 
             if !isequal(BCFwd, BCFwd1) || !isequal(BCBwd, BCBwd1)
@@ -299,16 +277,16 @@ function next_track_fwd(t::TrackGenerator, track::Track)
     # these are the tracks that arrive to the y-axis
     if j ≤ n_tracks_y[i]
         if BCFwd == Periodic
-            track.next_track_fwd = tracks[i][j + n_tracks_x[i]]
+            track.next_track_fwd = tracks[i][j+n_tracks_x[i]]
         elseif BCFwd == Vaccum || BCFwd == Reflective
-            track.next_track_fwd = tracks[k][j + n_tracks_x[i]]
+            track.next_track_fwd = tracks[k][j+n_tracks_x[i]]
         end
-    # these are the tracks that arrive to the top (superior x-axis)
+        # these are the tracks that arrive to the top (superior x-axis)
     else
         if BCFwd == Periodic
-            track.next_track_fwd = tracks[i][j - n_tracks_y[i]]
+            track.next_track_fwd = tracks[i][j-n_tracks_y[i]]
         elseif BCFwd == Vaccum || BCFwd == Reflective
-            track.next_track_fwd = tracks[k][n_tracks[i] + n_tracks_y[i] - j + 1]
+            track.next_track_fwd = tracks[k][n_tracks[i]+n_tracks_y[i]-j+1]
         end
     end
 
@@ -327,16 +305,16 @@ function next_track_bwd(t::TrackGenerator, track::Track)
     # these are the tracks that arrive to the bottom (inferior x-axis)
     if j ≤ n_tracks_x[i]
         if BCBwd == Periodic
-            track.next_track_bwd = tracks[i][j + n_tracks_y[i]]
+            track.next_track_bwd = tracks[i][j+n_tracks_y[i]]
         elseif BCBwd == Vaccum || BCBwd == Reflective
-            track.next_track_bwd = tracks[k][n_tracks_x[i] - j + 1]
+            track.next_track_bwd = tracks[k][n_tracks_x[i]-j+1]
         end
-    # these are the tracks that arrive to the y-axis
+        # these are the tracks that arrive to the y-axis
     else
         if BCBwd == Periodic
-            track.next_track_bwd = tracks[i][j - n_tracks_x[i]]
+            track.next_track_bwd = tracks[i][j-n_tracks_x[i]]
         elseif BCBwd == Vaccum || BCBwd == Reflective
-            track.next_track_bwd = tracks[k][j - n_tracks_x[i]]
+            track.next_track_bwd = tracks[k][j-n_tracks_x[i]]
         end
     end
 

@@ -65,7 +65,7 @@ function show(io::IO, track::Track)
     println(io, "  Length: ", ℓ)
     println(io, "  # of segments: ", length(segments)) # if it is zero, run segmentize!
     println(io, "  Boundary fwd: ", bc_fwd(track))
-    print(io,   "  Boundary bwd: ", bc_bwd(track))
+    print(io, "  Boundary bwd: ", bc_bwd(track))
     # avoid printing circular references (since it is a cyclic ray tracing...)
     # println(io, "  Next track fwd: ", next_track_fwd)
     # print(io,   "  Next track fwd: ", next_track_bwd)

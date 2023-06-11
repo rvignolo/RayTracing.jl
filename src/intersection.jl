@@ -66,11 +66,11 @@ function intersections(
             parallel_found = true
             continue
 
-        # if the intersection is outside the face, avoid it
+            # if the intersection is outside the face, avoid it
         elseif !point_in_segment(p1, p2, x_int)
             continue
 
-        # this is a valid intersection, store it
+            # this is a valid intersection, store it
         else
             n_int += 1
             int_points[n_int] = x_int
@@ -151,7 +151,7 @@ end
 function order_intersection_points(track::Track, x1::Point2D, x2::Point2D)
     @unpack ϕ = track
 
-    if isless(ϕ, π/2)
+    if isless(ϕ, π / 2)
         if x1[1] < x2[1]
             xi = x1
             xo = x2
