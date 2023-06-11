@@ -66,12 +66,12 @@ function intersections(
             parallel_found = true
             continue
 
-            # if the intersection is outside the face, avoid it
         elseif !point_in_segment(p1, p2, x_int)
+            # if the intersection is outside the face, avoid it
             continue
 
-            # this is a valid intersection, store it
         else
+            # this is a valid intersection, store it
             n_int += 1
             int_points[n_int] = x_int
         end

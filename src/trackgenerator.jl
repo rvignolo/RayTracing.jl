@@ -184,8 +184,8 @@ function trace!(t::TrackGenerator{T}) where {T}
                 if points_right(azimuthal_quadrature, i)
                     q = Point2D(Δx, p[2] + m * (Δx - p[1]))
 
-                    # or it can exit at x = 0 if it points to the left
                 else
+                    # or it can exit at x = 0 if it points to the left
                     q = Point2D(0, p[2] - m * p[1])
                 end
 
@@ -281,8 +281,8 @@ function next_track_fwd(t::TrackGenerator, track::Track)
         elseif BCFwd == Vaccum || BCFwd == Reflective
             track.next_track_fwd = tracks[k][j+n_tracks_x[i]]
         end
-        # these are the tracks that arrive to the top (superior x-axis)
     else
+        # these are the tracks that arrive to the top (superior x-axis)
         if BCFwd == Periodic
             track.next_track_fwd = tracks[i][j-n_tracks_y[i]]
         elseif BCFwd == Vaccum || BCFwd == Reflective
