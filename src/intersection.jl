@@ -150,23 +150,10 @@ end
 
 function order_intersection_points(track::Track, x1::Point2D, x2::Point2D)
     @unpack ϕ = track
-
     if isless(ϕ, π / 2)
-        if x1[1] < x2[1]
-            xi = x1
-            xo = x2
-        else
-            xi = x2
-            xo = x1
-        end
+        xi, xo = first(x1) < first(x2) ? (x1, x2) : (x2, x1)
     else
-        if x1[1] > x2[1]
-            xi = x1
-            xo = x2
-        else
-            xi = x2
-            xo = x1
-        end
+        xi, xo = first(x1) > first(x2) ? (x1, x2) : (x2, x1)
     end
     return xi, xo
 end
