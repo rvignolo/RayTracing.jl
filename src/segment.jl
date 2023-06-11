@@ -13,7 +13,7 @@ struct Segment{T<:Real}
 end
 
 function Segment(p::Point2D{T}, q::Point2D{T}, element::Int32=Int32(-1)) where {T}
-    return Segment(p, q, norm(p - q), Vector{T}(undef, 0), element)
+    return Segment(p, q, norm(p - q), Vector{T}(), element)
 end
 
 ℓ(segment::Segment) = segment.ℓ

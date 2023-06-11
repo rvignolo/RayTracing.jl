@@ -15,10 +15,10 @@
         y[2, j] = track.q[2]
     end
 
-    seriestype  :=  :path
-    linewidth   --> 0.20
-    legend      --> false
-    framestyle  :=  :none
+    seriestype := :path
+    linewidth --> 0.20
+    legend --> false
+    framestyle := :none
 
     return (x, y)
 end
@@ -39,11 +39,11 @@ end
         z[2, i] = segment.element
     end
 
-    seriestype  :=  :path
-    linewidth   --> 0.25
-    legend      --> false
-    framestyle  :=  :none
-    line_z      :=  z
+    seriestype := :path
+    linewidth --> 0.25
+    legend --> false
+    framestyle := :none
+    line_z := z
 
     return (x, y)
 end
@@ -64,11 +64,11 @@ end
         end
     end
 
-    seriestype  :=  :path
-    linewidth   --> 0.25
-    legend      --> false
-    framestyle  :=  :none
-    line_z      :=  z
+    seriestype := :path
+    linewidth --> 0.25
+    legend --> false
+    framestyle := :none
+    line_z := z
 
     return (x, y)
 end
@@ -93,15 +93,15 @@ end
             y[j, i] = nodes[node_id][2]
         end
         # TODO: improve
-        x[nn + 1, i] = nodes[nodes_ids[1]][1]
-        y[nn + 1, i] = nodes[nodes_ids[1]][2]
+        x[nn+1, i] = nodes[nodes_ids[1]][1]
+        y[nn+1, i] = nodes[nodes_ids[1]][2]
     end
 
-    linecolor   --> :black
-    seriestype  :=  :path
-    linewidth   --> 0.2
-    legend      --> false
-    framestyle  :=  :none
+    linecolor --> :black
+    seriestype := :path
+    linewidth --> 0.2
+    legend --> false
+    framestyle := :none
 
     return (x, y)
 end

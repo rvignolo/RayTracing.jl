@@ -152,7 +152,7 @@ point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D) =
 """
     point_in_triangle(mesh::Mesh, node_ids, x) -> Bool
 
-Checks if whether a given point `x` lies inside, the edge or corner of the triangle given by
+Checks whether a given point `x` lies inside, the edge or corner of the triangle given by
 its node coordinates ids `node_ids`.
 """
 function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
@@ -178,7 +178,7 @@ end
 """
     point_in_quadrangle(mesh::Mesh, node_ids, x) -> Bool
 
-Checks if whether a given point `x` lies inside the quadrangle given by its node coordinates
+Checks whether a given point `x` lies inside the quadrangle given by its node coordinates
 ids `node_ids`.
 """
 function point_in_quadrangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)

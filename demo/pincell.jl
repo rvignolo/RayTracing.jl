@@ -3,7 +3,7 @@ using RayTracing
 using Gridap
 
 # load geometry
-jsonfile = joinpath(@__DIR__,"pincell.json")
+jsonfile = joinpath(@__DIR__, "pincell.json")
 model = DiscreteModelFromFile(jsonfile)
 
 # number of azimuthal angles
@@ -23,7 +23,7 @@ trace!(tg)
 
 # plot tracks
 # plot(tg, dpi=300, size=(250,250), linecolor=:turquoise, background_color=:transparent)
-plot(tg, dpi=300, size=(250,250), palette=:Paired_4, background_color=:transparent)
+plot(tg, dpi=300, size=(250, 250), palette=:Paired_4, background_color=:transparent)
 
 # savefig("pincell.svg")
 # savefig("pincell.pdf")
