@@ -1,7 +1,7 @@
 name = "RayTracing"
 uuid = "3007c720-8091-40db-9339-e09e4eb4c7ea"
 authors = ["Ramiro Vignolo <ramirovignolo@gmail.com>"]
-version = "0.2.1"
+version = "0.2.2"
 
 [deps]
 Gridap = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
@@ -11,15 +11,6 @@ NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
 RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
-
-[compat]
-Gridap = "0.15"
-IntervalSets = "0.5"
-NearestNeighbors = "0.4"
-RecipesBase = "1.1"
-StaticArrays = "1.0"
-UnPack = "1.0"
-julia = "1.5"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
