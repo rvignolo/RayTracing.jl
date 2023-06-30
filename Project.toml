@@ -12,6 +12,15 @@ RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
 
+[compat]
+Gridap = ">=0.15"
+IntervalSets = ">=0.5"
+NearestNeighbors = ">=0.4"
+RecipesBase = ">=1.1"
+StaticArrays = ">=1.0"
+UnPack = ">=1.0"
+julia = ">=1.5"
+
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
