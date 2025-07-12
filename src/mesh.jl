@@ -12,8 +12,8 @@ struct Mesh{M,K,N,C,B}
     kdtree::K
     node_cells::N
     cell_nodes::C
-    bbmin::B
-    bbmax::B
+    bb_min::B
+    bb_max::B
 end
 
 """
@@ -26,8 +26,8 @@ function Mesh(model::UnstructuredDiscreteModel)
     kdtree = KDTree(grid)
     node_cells = get_faces(get_grid_topology(model), 0, num_cell_dims(model))
     cell_nodes = get_cell_node_ids(grid)
-    bbmin, bbmax = bounding_box(grid)
-    return Mesh(model, kdtree, node_cells, cell_nodes, bbmin, bbmax)
+    bb_min, bb_max = bounding_box(grid)
+    return Mesh(model, kdtree, node_cells, cell_nodes, bb_min, bb_max)
 end
 
 """
@@ -73,14 +73,14 @@ end
 
 Returns the width of the rectangular mesh.
 """
-@inline width(mesh::Mesh) = mesh.bbmax[1] - mesh.bbmin[1]
+@inline width(mesh::Mesh) = mesh.bb_max[1] - mesh.bb_min[1]
 
 """
     width(mesh::Mesh)
 
 Returns the height of the rectangular mesh.
 """
-@inline height(mesh::Mesh) = mesh.bbmax[2] - mesh.bbmin[2]
+@inline height(mesh::Mesh) = mesh.bb_max[2] - mesh.bb_min[2]
 
 """
     inboundary(mesh::Mesh, x::Point2D, [atol::Real=0]) -> Bool
@@ -89,9 +89,9 @@ Checks if a point `x` lies in the boundary of the `mesh` with certain absolute t
 `atol`.
 """
 function inboundary(mesh::Mesh, x::Point2D, atol::Real=0)
-    @unpack bbmin, bbmax = mesh
-    return isapprox(x[1], bbmax[1], atol=atol) || isapprox(x[1], bbmin[1], atol=atol) ||
-           isapprox(x[2], bbmax[2], atol=atol) || isapprox(x[2], bbmin[2], atol=atol)
+    @unpack bb_min, bb_max = mesh
+    return isapprox(x[1], bb_max[1], atol=atol) || isapprox(x[1], bb_min[1], atol=atol) ||
+           isapprox(x[2], bb_max[2], atol=atol) || isapprox(x[2], bb_min[2], atol=atol)
 end
 
 """

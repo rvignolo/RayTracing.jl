@@ -1,5 +1,5 @@
 @enum BoundaryType begin
-    Vaccum
+    Vacuum
     Reflective
     Periodic
 end
@@ -11,7 +11,7 @@ struct BoundaryConditions{T<:BoundaryType}
     left::T
 end
 
-BoundaryConditions(; top=Vaccum, bottom=Vaccum, right=Vaccum, left=Vaccum) =
+BoundaryConditions(; top=Vacuum, bottom=Vacuum, right=Vacuum, left=Vacuum) =
     BoundaryConditions(top, bottom, right, left)
 
 function boundary_condition(x::Point2D, sides, bcs::BoundaryConditions)
