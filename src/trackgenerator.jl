@@ -1,9 +1,35 @@
 
 """
-    TrackGenerator{M<:Mesh,Q<:AzimuthalQuadrature,T<:Real}
+    TrackGenerator{T<:Real,M<:Mesh,BC<:BoundaryConditions,Q<:AzimuthalQuadrature}
 
-This is the main structure of the library, which holds all the information about the ray
-tracing.
+Main structure for ray tracing in unstructured meshes using the Method of Characteristics.
+
+Generates and manages neutron ray trajectories across a 2D domain for transport calculations.
+Tracks are organized by azimuthal angle and form closed loops through boundary interactions,
+enabling iterative transport sweeps.
+
+## Key Fields
+- `mesh`: Computational mesh containing geometry and cell information
+- `bcs`: Boundary conditions for domain edges (vacuum, reflective, periodic)
+- `azimuthal_quadrature`: Angular discretization with weights and angles
+- `tracks`: Tracks organized by azimuthal angle `[azim_idx][track_idx]`
+- `tracks_by_uid`: All tracks indexed by unique ID for fast lookup
+- `n_total_tracks`: Total number of tracks across all angles
+- `tiny_step`: Small step size for numerical stability in intersections
+- `volume_correction`: Whether to correct cell volumes from ray tracing
+- `volumes`: Cell volumes (corrected if `volume_correction=true`)
+
+## Usage
+```julia
+# Create track generator
+tg = TrackGenerator(model, 16, 0.08, bcs=BoundaryConditions(top=Reflective, ...))
+
+# Generate tracks and segments
+trace!(tg)
+segmentize!(tg)
+```
+
+See also: [`trace!`](@ref), [`segmentize!`](@ref), [`BoundaryConditions`](@ref)
 """
 struct TrackGenerator{T<:Real,M<:Mesh,BC<:BoundaryConditions,Q<:AzimuthalQuadrature}
     mesh::M
