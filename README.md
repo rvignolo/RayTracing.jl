@@ -10,8 +10,8 @@
  [NeutronTransport.jl](https://github.com/rvignolo/NeutronTransport.jl).
 
 <p align="center">
-    <img width="500" src="demo/cyclic_track_no_mesh.gif" alt="Cyclic Ray Tracing">
-    <img width="500" src="demo/cyclic_track_with_mesh.gif" alt="Cyclic Ray Tracing with Mesh">
+    <img width="300" src="demo/cyclic_track_no_mesh.gif" alt="Cyclic Ray Tracing">
+    <img width="300" src="demo/cyclic_track_with_mesh.gif" alt="Cyclic Ray Tracing with Mesh">
 </p>
 
 ## Installation
