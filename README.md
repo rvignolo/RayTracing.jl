@@ -9,9 +9,15 @@
  quantities used to solve the transport equation in
  [NeutronTransport.jl](https://github.com/rvignolo/NeutronTransport.jl).
 
+## Demo
+
+This is a demo of the ray tracing algorithm. The first animation shows the ray tracing without the mesh, while the
+second one shows the ray tracing with the mesh. The mesh is a simple pin-cell geometry. It can be seen that
+superposition of the tracks over the mesh generates the segments.
+
 <p align="center">
-    <img width="300" src="demo/cyclic_track_no_mesh.gif" alt="Cyclic Ray Tracing">
-    <img width="300" src="demo/cyclic_track_with_mesh.gif" alt="Cyclic Ray Tracing with Mesh">
+    <img width="400" src="demo/cyclic_track_no_mesh.gif" alt="Cyclic Ray Tracing">
+    <img width="400" src="demo/cyclic_track_with_mesh.gif" alt="Cyclic Ray Tracing with Mesh">
 </p>
 
 ## Installation
