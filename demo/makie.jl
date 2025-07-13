@@ -6,35 +6,8 @@ using DataStructures: CircularBuffer
 using Colors
 using UnPack
 
-const TAIL_LENGTH = 200
-const BACKGROUND_COLOR = RGBf(0.98, 0.98, 0.98)
-
-# Enhanced color palette options
-const RAY_COLORS = [
-    RGBf(0.9, 0.2, 0.2),   # Bright Red
-    RGBf(0.2, 0.7, 0.9),   # Bright Blue
-    RGBf(0.2, 0.9, 0.2),   # Bright Green
-    RGBf(0.9, 0.7, 0.2),   # Bright Orange
-    RGBf(0.7, 0.2, 0.9),   # Bright Purple
-    RGBf(0.9, 0.2, 0.7),   # Bright Pink
-]
-
-# Alternative color schemes
-const COOL_COLORS = [
-    RGBf(0.0, 0.6, 1.0),   # Sky Blue
-    RGBf(0.2, 0.8, 0.8),   # Cyan
-    RGBf(0.4, 0.6, 1.0),   # Light Blue
-    RGBf(0.6, 0.4, 1.0),   # Lavender
-    RGBf(0.8, 0.2, 0.8),   # Magenta
-]
-
-const WARM_COLORS = [
-    RGBf(1.0, 0.3, 0.3),   # Red
-    RGBf(1.0, 0.6, 0.2),   # Orange
-    RGBf(1.0, 0.8, 0.2),   # Yellow
-    RGBf(0.8, 0.8, 0.2),   # Lime
-    RGBf(0.6, 0.8, 0.2),   # Green
-]
+const TAIL_LENGTH = 20000
+const BACKGROUND_COLOR = RGBf(0.98, 0.98, 0.98);
 
 # Lightweight mesh drawing function
 function draw_lightweight_mesh!(ax, mesh;
@@ -78,12 +51,11 @@ tg = TrackGenerator(model, nφ, δ, bcs=bcs)
 trace!(tg)
 segmentize!(tg)
 
-# Enhanced figure with better layout and styling
 fig = Figure(
-    resolution=(1200, 800),  # Slightly reduced resolution for better performance
+    resolution=(1000, 1000),
     backgroundcolor=BACKGROUND_COLOR,
-    fontsize=16,  # Increased font size
-    font="Computer Modern"  # Better font
+    fontsize=16,
+    font="Computer Modern",
 )
 
 # Create main axis with enhanced styling
@@ -106,8 +78,7 @@ ax = Axis(
     xlabelsize=14,
     ylabelsize=14,
     titlesize=18,
-    aspect=DataAspect(),  # Maintain aspect ratio
-    # Performance optimizations
+    aspect=DataAspect(),
     autolimitaspect=1.0,
     limits=(nothing, nothing, nothing, nothing)
 )
@@ -116,36 +87,8 @@ ax = Axis(
 GLMakie.xlims!(ax, (tg.mesh.bb_min.x, tg.mesh.bb_max.x))
 GLMakie.ylims!(ax, (tg.mesh.bb_min.y, tg.mesh.bb_max.y))
 
-# Draw lightweight mesh (commented out by default to avoid performance impact)
-# Uncomment the line below to enable mesh visualization
+# Draw lightweight mesh
 draw_lightweight_mesh!(ax, tg.mesh)
-
-# # Add information panel
-# info_text = """
-# Ray Tracing Parameters:
-# • Azimuthal angles: $nφ
-# • Spacing: $δ
-# • Total tracks: $(tg.n_total_tracks)
-# • Boundary: Reflective
-# """
-
-# text!(ax, info_text,
-#     position=(δ / 2, tg.mesh.bb_max.y - δ / 2),
-#     fontsize=12,
-#     color=:black,
-#     align=(:left, :top),
-#     font="Computer Modern",
-#     space=:data,
-# )
-
-# this plots a cyclic trajectory. I have selected a track that looks nice
-initial_track = tg.tracks[2][1]
-trajectory(ax, initial_track, RayTracing.Forward, "cyclic_track.gif")
-
-# this also works and would plot all tracks simultaneously
-# for azimuthal_tracks in tg.tracks
-#     @async trajectory(ax, azimuthal_tracks[1], RayTracing.Forward, "cyclic_track.mp4")
-# end
 
 # updates the trajectory with a new segment
 function update_ray!(trajectory_obs, segment, direction)
@@ -175,22 +118,17 @@ function trajectory(ax, initial_track, initial_direction, output)
     fill!(trajectory, Point2f(x1, y1))
     trajectory_obs = Observable(trajectory)
 
-    # Choose a vibrant color from the palette
-    base_color = RAY_COLORS[2]  # You can change this to use different colors
-    color = to_color(base_color)
-
-    # Enhanced tail color with better gradient
-    tail_color = [RGBAf(color.r, color.g, color.b, (i / TAIL_LENGTH)^1.5) for i in 1:TAIL_LENGTH]
-
     # Draw the trajectory with enhanced styling
     lines!(ax, trajectory_obs;
         linewidth=2.5,
-        color=tail_color,
+        color=to_color(:black),
         linestyle=:solid)
 
     record(fig, output) do io
+
+        # Only update observable every N segments, for performance reasons
         update_counter = 0
-        update_frequency = 5  # Only update observable every N segments
+        update_frequency = 5
 
         while true
 
@@ -232,3 +170,12 @@ function trajectory(ax, initial_track, initial_direction, output)
         end
     end
 end
+
+# Plot a single track, purposefully selected to look nice
+initial_track = tg.tracks[2][1]
+trajectory(ax, initial_track, RayTracing.Forward, "cyclic_track_with_mesh.gif")
+
+# This also works and would plot all tracks simultaneously, but it has limited performance
+# for (i, azimuthal_tracks) in enumerate(tg.tracks)
+#     @async trajectory(ax, first(azimuthal_tracks), RayTracing.Forward, "cyclic_track.gif")
+# end

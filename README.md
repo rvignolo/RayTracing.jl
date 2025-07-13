@@ -2,15 +2,22 @@
 
 [![Build Status](https://github.com/rvignolo/RayTracing.jl/workflows/CI/badge.svg)](https://github.com/rvignolo/RayTracing.jl/actions)
 
- The partial integro-differential [neutron transport equation](https://en.wikipedia.org/wiki/Neutron_transport#Neutron_transport_equation) can be casted to an ordinary differential equation over tracks that emulate neutron trajectories across a problem domain by means of the Method of Characteristics. This library addresses the cyclic ray tracing of those paths over any 2D rectangular mesh and computes quantities used to solve the transport equation in [NeutronTransport.jl](https://github.com/rvignolo/NeutronTransport.jl).
+ The partial integro-differential [neutron transport
+ equation](https://en.wikipedia.org/wiki/Neutron_transport#Neutron_transport_equation) can be casted to an ordinary
+ differential equation over tracks that emulate neutron trajectories across a problem domain by means of the Method of
+ Characteristics. This library addresses the cyclic ray tracing of those paths over any 2D rectangular mesh and computes
+ quantities used to solve the transport equation in
+ [NeutronTransport.jl](https://github.com/rvignolo/NeutronTransport.jl).
 
 <p align="center">
-    <img width="500" src="demo/cyclic_track.gif" alt="Cyclic Ray Tracing">
+    <img width="500" src="demo/cyclic_track_no_mesh.gif" alt="Cyclic Ray Tracing">
+    <img width="500" src="demo/cyclic_track_with_mesh.gif" alt="Cyclic Ray Tracing with Mesh">
 </p>
 
 ## Installation
 
-The package can be installed using the Julia package manager. From the Julia REPL, type `]` to enter the `Pkg` REPL mode and run:
+The package can be installed using the Julia package manager. From the Julia REPL, type `]` to enter the `Pkg` REPL mode
+and run:
 
 ```julia
 pkg> add RayTracing
@@ -24,7 +31,10 @@ julia> import Pkg; Pkg.add("RayTracing")
 
  ## Example
 
-Create a `gmsh` mesh using any available tool of your choice (checkout [GridapGmsh.jl](https://github.com/gridap/GridapGmsh.jl) for convenience). For example, [this](demo/pincell-gmsh.jl) file shows the definition of a simple *pin-cell* geometry. Then, the ray tracing consists in two steps, namely, the track tracing and the segmentation of those tracks.
+Create a `gmsh` mesh using any available tool of your choice (checkout
+[GridapGmsh.jl](https://github.com/gridap/GridapGmsh.jl) for convenience). For example, [this](demo/pincell-gmsh.jl)
+file shows the definition of a simple *pin-cell* geometry. Then, the ray tracing consists in two steps, namely, the
+track tracing and the segmentation of those tracks.
 
 ```julia
 using RayTracing
