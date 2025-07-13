@@ -19,12 +19,12 @@ struct TrackGenerator{T<:Real,M<:Mesh,BC<:BoundaryConditions,Q<:AzimuthalQuadrat
     tracks_by_uid::Vector{Track}
 
     tiny_step::T
-    correct_volumes::Bool
+    volume_correction::Bool
     volumes::Vector{T}
 end
 
 function show(io::IO, t::TrackGenerator)
-    @unpack azimuthal_quadrature, n_total_tracks, correct_volumes = t
+    @unpack azimuthal_quadrature, n_total_tracks, volume_correction = t
     @unpack δs, ϕs = azimuthal_quadrature
     n_azim_2 = nazim2(azimuthal_quadrature)
 
@@ -33,7 +33,7 @@ function show(io::IO, t::TrackGenerator)
     println(io, "  Azimuthal angles in (0, π): ", round.(rad2deg.(ϕs), digits=2))
     println(io, "  Effective azimuthal spacings: ", round.(δs, digits=3))
     println(io, "  Total tracks: ", n_total_tracks)
-    print(io, "  Correct volumes: ", correct_volumes)
+    print(io, "  Correct volumes: ", volume_correction)
 end
 
 origins_in_x(n_tracks_x, i, j) = j ≤ n_tracks_x[i]
@@ -42,18 +42,18 @@ origins_in_y(n_tracks_x, i, j) = !origins_in_x(n_tracks_x, i, j)
 """
     TrackGenerator(
         model::UnstructuredDiscreteModel, n_azim::Int, δ::T;
-        tiny_step::T=1e-8, correct_volumes=false
+        tiny_step::T=1e-8, volume_correction=false
     ) where {T<:Real}
 
 Initialize a [`TrackGenerator`](@ref) using an [`UnstructuredDiscreteModel`](@ref) which
 holds mesh related information, the number of azimuthal angles `n_azim` and the azimuthal
 spacing `δ`. The optional attributes are `tiny_step`, which is used in the track's
-segmentation routine, and `correct_volumes`, which allows for cell volume correction since
+segmentation routine, and `volume_correction`, which allows for cell volume correction since
 the ray tracing algorithm yields to approximate volumes.
 """
 function TrackGenerator(
     model::UnstructuredDiscreteModel, n_azim::Int, δ::T;
-    bcs::BoundaryConditions=BoundaryConditions(), tiny_step::T=1e-8, correct_volumes=false
+    bcs::BoundaryConditions=BoundaryConditions(), tiny_step::T=1e-8, volume_correction=false
 ) where {T<:Real}
 
     mesh = Mesh(model)
@@ -74,7 +74,7 @@ function TrackGenerator(
         n_tracks_y[i] = floor(Δy / δ * abs(cos(φ))) + 1
         n_tracks[i] = n_tracks_x[i] + n_tracks_y[i]
 
-        # supplementaries:
+        # suplementary angles:
         j = suplementary_idx(azimuthal_quadrature, i)
         n_tracks_x[j] = n_tracks_x[i]
         n_tracks_y[j] = n_tracks_y[i]
@@ -94,7 +94,7 @@ function TrackGenerator(
 
     return TrackGenerator(
         mesh, bcs, azimuthal_quadrature, n_tracks_x, n_tracks_y, n_tracks, n_total_tracks,
-        tracks, tracks_by_uid, tiny_step, correct_volumes, volumes
+        tracks, tracks_by_uid, tiny_step, volume_correction, volumes
     )
 end
 
@@ -109,7 +109,7 @@ function trace!(t::TrackGenerator{T}) where {T}
     @unpack mesh, bcs, azimuthal_quadrature = t
     @unpack n_tracks_x, n_tracks_y, n_tracks = t
     @unpack tracks, tracks_by_uid = t
-    @unpack bbmin, bbmax = mesh
+    @unpack bb_min, bb_max = mesh
     @unpack δs, ϕs, ωₐ = azimuthal_quadrature
 
     n_azim_2 = nazim2(azimuthal_quadrature)
@@ -131,7 +131,7 @@ function trace!(t::TrackGenerator{T}) where {T}
         δy[i] = Δy / n_tracks_y[i]
         δs[i] = δx[i] * sin(ϕ)
 
-        # supplementaries:
+        # suplementary angles:
         j = suplementary_idx(azimuthal_quadrature, i)
         ϕs[j] = π - ϕ
         δx[j] = δx[i]
@@ -143,10 +143,10 @@ function trace!(t::TrackGenerator{T}) where {T}
     init_weights!(azimuthal_quadrature)
 
     # mesh vertices and side segments
-    p1 = bbmin
-    p2 = Point2D(bbmin[1], bbmax[2])
-    p3 = bbmax
-    p4 = Point2D(bbmax[1], bbmin[2])
+    p1 = bb_min
+    p2 = Point2D(bb_min[1], bb_max[2])
+    p3 = bb_max
+    p4 = Point2D(bb_max[1], bb_min[2])
     sides = (top=Segment(p2, p3), bottom=Segment(p4, p1),
         right=Segment(p3, p4), left=Segment(p1, p2))
 
@@ -195,8 +195,8 @@ function trace!(t::TrackGenerator{T}) where {T}
             end
 
             # recalibrate coordinates and compute distance
-            p += bbmin
-            q += bbmin
+            p += bb_min
+            q += bb_min
             ℓ = norm(p - q)
 
             ABC = general_form(p, q)
@@ -223,7 +223,7 @@ function trace!(t::TrackGenerator{T}) where {T}
             else
                 if BCFwd == Periodic
                     DirNextTrackFwd = Forward
-                elseif BCFwd == Vaccum || BCFwd == Reflective
+                elseif BCFwd == Vacuum || BCFwd == Reflective
                     DirNextTrackFwd = Backward
                 end
             end
@@ -231,7 +231,7 @@ function trace!(t::TrackGenerator{T}) where {T}
             if j ≤ n_tracks_x[i]
                 if BCBwd == Periodic
                     DirNextTrackBwd = Backward
-                elseif BCBwd == Vaccum || BCBwd == Reflective
+                elseif BCBwd == Vacuum || BCBwd == Reflective
                     DirNextTrackBwd = Forward
                 end
             else
@@ -278,14 +278,14 @@ function next_track_fwd(t::TrackGenerator, track::Track)
     if j ≤ n_tracks_y[i]
         if BCFwd == Periodic
             track.next_track_fwd = tracks[i][j+n_tracks_x[i]]
-        elseif BCFwd == Vaccum || BCFwd == Reflective
+        elseif BCFwd == Vacuum || BCFwd == Reflective
             track.next_track_fwd = tracks[k][j+n_tracks_x[i]]
         end
     else
         # these are the tracks that arrive to the top (superior x-axis)
         if BCFwd == Periodic
             track.next_track_fwd = tracks[i][j-n_tracks_y[i]]
-        elseif BCFwd == Vaccum || BCFwd == Reflective
+        elseif BCFwd == Vacuum || BCFwd == Reflective
             track.next_track_fwd = tracks[k][n_tracks[i]+n_tracks_y[i]-j+1]
         end
     end
@@ -306,14 +306,14 @@ function next_track_bwd(t::TrackGenerator, track::Track)
     if j ≤ n_tracks_x[i]
         if BCBwd == Periodic
             track.next_track_bwd = tracks[i][j+n_tracks_y[i]]
-        elseif BCBwd == Vaccum || BCBwd == Reflective
+        elseif BCBwd == Vacuum || BCBwd == Reflective
             track.next_track_bwd = tracks[k][n_tracks_x[i]-j+1]
         end
         # these are the tracks that arrive to the y-axis
     else
         if BCBwd == Periodic
             track.next_track_bwd = tracks[i][j-n_tracks_x[i]]
-        elseif BCBwd == Vaccum || BCBwd == Reflective
+        elseif BCBwd == Vacuum || BCBwd == Reflective
             track.next_track_bwd = tracks[k][j-n_tracks_x[i]]
         end
     end
@@ -331,8 +331,8 @@ the cells or elements of the mesh. This function call is intended to be done aft
 function segmentize!(t::TrackGenerator{T}; k::Int=5, rtol::Real=Base.rtoldefault(T)) where {T}
     @unpack tracks_by_uid = t
 
-    !isassigned(tracks_by_uid) && error("Segmentation is intended after tracing. Please, " *
-                                        "call `trace!` first!")
+    !isassigned(tracks_by_uid, 1) && error("Segmentation is intended after tracing. Please, " *
+                                           "call `trace!` first!")
     for track in tracks_by_uid
         _segmentize_track!(t, track, k, rtol)
     end

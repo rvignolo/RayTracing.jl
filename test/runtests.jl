@@ -2,10 +2,10 @@ using RayTracing
 using Gridap
 using Test
 
-jsonfile = joinpath(@__DIR__,"../demo/pincell.json")
+jsonfile = joinpath(@__DIR__, "../demo/pincell.json")
 model = DiscreteModelFromFile(jsonfile)
 
-@testset "Principal tests" begin
+@testset "Main tests" begin
 
     tg = TrackGenerator(model, 8, 0.02)
     trace!(tg)
@@ -18,7 +18,7 @@ model = DiscreteModelFromFile(jsonfile)
         @test tg.n_tracks == [105, 105, 105, 105]
     end
 
-    @testset "Azimuthal quadradure" begin
+    @testset "Azimuthal quadrature" begin
         @test isequal(RayTracing.nazim(tg.azimuthal_quadrature), 8)
         @test isequal(RayTracing.nazim2(tg.azimuthal_quadrature), 4)
         @test isequal(RayTracing.nazim4(tg.azimuthal_quadrature), 2)
@@ -45,7 +45,7 @@ end
 
 @testset "Reflection tests" begin
 
-    bcs = BoundaryConditions(top=Vaccum, bottom=Reflective, left=Reflective, right=Vaccum)
+    bcs = BoundaryConditions(top=Vacuum, bottom=Reflective, left=Reflective, right=Vacuum)
     tg = TrackGenerator(model, 4, 0.8; bcs=bcs)
     trace!(tg)
 
@@ -55,7 +55,7 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
         @test RayTracing.bc_bwd(track) == Reflective
         @test next_track_fwd.uid == 7
         @test next_track_bwd.uid == 6
@@ -69,7 +69,7 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
         @test RayTracing.bc_bwd(track) == Reflective
         @test next_track_fwd.uid == 8
         @test next_track_bwd.uid == 5
@@ -83,7 +83,7 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
         @test RayTracing.bc_bwd(track) == Reflective
         @test next_track_fwd.uid == 8
         @test next_track_bwd.uid == 5
@@ -97,7 +97,7 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
         @test RayTracing.bc_bwd(track) == Reflective
         @test next_track_fwd.uid == 7
         @test next_track_bwd.uid == 6
@@ -139,8 +139,8 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
-        @test RayTracing.bc_bwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
+        @test RayTracing.bc_bwd(track) == Vacuum
         @test next_track_fwd.uid == 4
         @test next_track_bwd.uid == 1
         @test DirNextTrackFwd == RayTracing.Backward
@@ -153,8 +153,8 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
-        @test RayTracing.bc_bwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
+        @test RayTracing.bc_bwd(track) == Vacuum
         @test next_track_fwd.uid == 3
         @test next_track_bwd.uid == 2
         @test DirNextTrackFwd == RayTracing.Backward
@@ -171,7 +171,7 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
         @test RayTracing.bc_bwd(track) == Reflective
         @test next_track_fwd.uid == 11
         @test next_track_bwd.uid == 10
@@ -185,7 +185,7 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
         @test RayTracing.bc_bwd(track) == Reflective
         @test next_track_fwd.uid == 12
         @test next_track_bwd.uid == 10
@@ -199,7 +199,7 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
         @test RayTracing.bc_bwd(track) == Reflective
         @test next_track_fwd.uid == 12
         @test next_track_bwd.uid == 11
@@ -213,7 +213,7 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
         @test RayTracing.bc_bwd(track) == Reflective
         @test next_track_fwd.uid == 9
         @test next_track_bwd.uid == 8
@@ -227,7 +227,7 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
         @test RayTracing.bc_bwd(track) == Reflective
         @test next_track_fwd.uid == 9
         @test next_track_bwd.uid == 7
@@ -241,7 +241,7 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
         @test RayTracing.bc_bwd(track) == Reflective
         @test next_track_fwd.uid == 8
         @test next_track_bwd.uid == 7
@@ -269,7 +269,7 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
         @test RayTracing.bc_bwd(track) == Reflective
         @test next_track_fwd.uid == 6
         @test next_track_bwd.uid == 4
@@ -283,8 +283,8 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
-        @test RayTracing.bc_bwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
+        @test RayTracing.bc_bwd(track) == Vacuum
         @test next_track_fwd.uid == 5
         @test next_track_bwd.uid == 4
         @test DirNextTrackFwd == RayTracing.Backward
@@ -312,7 +312,7 @@ end
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
         @test RayTracing.bc_fwd(track) == Reflective
-        @test RayTracing.bc_bwd(track) == Vaccum
+        @test RayTracing.bc_bwd(track) == Vacuum
         @test next_track_fwd.uid == 3
         @test next_track_bwd.uid == 1
         @test DirNextTrackFwd == RayTracing.Forward
@@ -325,8 +325,8 @@ end
         next_track_bwd = track.next_track_bwd
         DirNextTrackFwd = RayTracing.dir_next_track_fwd(track)
         DirNextTrackBwd = RayTracing.dir_next_track_bwd(track)
-        @test RayTracing.bc_fwd(track) == Vaccum
-        @test RayTracing.bc_bwd(track) == Vaccum
+        @test RayTracing.bc_fwd(track) == Vacuum
+        @test RayTracing.bc_bwd(track) == Vacuum
         @test next_track_fwd.uid == 3
         @test next_track_bwd.uid == 2
         @test DirNextTrackFwd == RayTracing.Backward
