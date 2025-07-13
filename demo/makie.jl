@@ -9,6 +9,17 @@ using UnPack
 const TAIL_LENGTH = 20000
 const BACKGROUND_COLOR = RGBf(0.98, 0.98, 0.98);
 
+# Transport problem
+jsonfile = joinpath(@__DIR__, "pincell.json")
+model = DiscreteModelFromFile(jsonfile)
+nφ = 16
+δ = 0.08
+bc = Reflective
+bcs = BoundaryConditions(top=bc, bottom=bc, left=bc, right=bc)
+tg = TrackGenerator(model, nφ, δ, bcs=bcs)
+trace!(tg)
+segmentize!(tg)
+
 # Lightweight mesh drawing function
 function draw_lightweight_mesh!(ax, mesh;
     cell_color=RGBf(0.95, 0.95, 0.95),
@@ -19,76 +30,32 @@ function draw_lightweight_mesh!(ax, mesh;
     grid = get_grid(model)
     node_coordinates = Gridap.ReferenceFEs.get_node_coordinates(grid)
 
+    face_labeling = get_face_labeling(model)
+    cell_tags = Gridap.Geometry.get_face_tag(face_labeling, 2)
+
     # Pre-allocate arrays to avoid repeated allocations
     cell_count = length(cell_nodes)
-
-    # Pre-allocate arrays for batch operations
+    cell_colors = Vector{RGBf}(undef, cell_count)
     all_polygons = Vector{Vector{Point2f}}(undef, cell_count)
 
     # Prepare all polygon coordinates in a single pass
     for (cell_id, node_ids) in enumerate(cell_nodes)
         nodes = [node_coordinates[nid] for nid in node_ids]
         all_polygons[cell_id] = Point2f.(getproperty.(nodes, :data))
+
+        # color based on cell type, darker for increasing cell type
+        cell_tag = cell_tags[cell_id]
+        cell_color′ = cell_color * (cell_tag / maximum(cell_tags))
+        cell_colors[cell_id] = cell_color′
     end
 
     # Draw all polygons in a single batch operation
     poly!(ax, all_polygons,
-        color=cell_color,
+        color=cell_colors,
         strokecolor=edge_color,
         strokewidth=edge_width,
         alpha=alpha)
 end
-
-# load geometry
-jsonfile = joinpath(@__DIR__, "pincell.json")
-model = DiscreteModelFromFile(jsonfile)
-
-nφ = 16
-δ = 0.08
-bc = Reflective
-bcs = BoundaryConditions(top=bc, bottom=bc, left=bc, right=bc)
-tg = TrackGenerator(model, nφ, δ, bcs=bcs)
-trace!(tg)
-segmentize!(tg)
-
-fig = Figure(
-    resolution=(1000, 1000),
-    backgroundcolor=BACKGROUND_COLOR,
-    fontsize=16,
-    font="Computer Modern",
-)
-
-# Create main axis with enhanced styling
-ax = Axis(
-    fig[1, 1],
-    title="Ray Tracing Visualization",
-    xlabel="X Position",
-    ylabel="Y Position",
-    backgroundcolor=:white,
-    xgridvisible=false,
-    ygridvisible=false,
-    xgridcolor=RGBf(0.9, 0.9, 0.9),
-    ygridcolor=RGBf(0.9, 0.9, 0.9),
-    xgridwidth=1.0,
-    ygridwidth=1.0,
-    xgridstyle=:dash,
-    ygridstyle=:dash,
-    xticklabelsize=12,
-    yticklabelsize=12,
-    xlabelsize=14,
-    ylabelsize=14,
-    titlesize=18,
-    aspect=DataAspect(),
-    autolimitaspect=1.0,
-    limits=(nothing, nothing, nothing, nothing)
-)
-
-# Set axis limits
-GLMakie.xlims!(ax, (tg.mesh.bb_min.x, tg.mesh.bb_max.x))
-GLMakie.ylims!(ax, (tg.mesh.bb_min.y, tg.mesh.bb_max.y))
-
-# Draw lightweight mesh
-draw_lightweight_mesh!(ax, tg.mesh)
 
 # updates the trajectory with a new segment
 function update_ray!(trajectory_obs, segment, direction)
@@ -170,6 +137,45 @@ function trajectory(ax, initial_track, initial_direction, output)
         end
     end
 end
+
+fig = Figure(
+    resolution=(1000, 1000),
+    backgroundcolor=BACKGROUND_COLOR,
+    fontsize=16,
+    font="Computer Modern",
+)
+
+# Create main axis with enhanced styling
+ax = Axis(
+    fig[1, 1],
+    title="Ray Tracing Visualization",
+    xlabel="X Position",
+    ylabel="Y Position",
+    backgroundcolor=:white,
+    xgridvisible=false,
+    ygridvisible=false,
+    xgridcolor=RGBf(0.9, 0.9, 0.9),
+    ygridcolor=RGBf(0.9, 0.9, 0.9),
+    xgridwidth=1.0,
+    ygridwidth=1.0,
+    xgridstyle=:dash,
+    ygridstyle=:dash,
+    xticklabelsize=12,
+    yticklabelsize=12,
+    xlabelsize=14,
+    ylabelsize=14,
+    titlesize=18,
+    aspect=DataAspect(),
+    autolimitaspect=1.0,
+    limits=(nothing, nothing, nothing, nothing)
+)
+
+# Set axis limits
+GLMakie.xlims!(ax, (tg.mesh.bb_min.x, tg.mesh.bb_max.x))
+GLMakie.ylims!(ax, (tg.mesh.bb_min.y, tg.mesh.bb_max.y))
+
+# Draw lightweight mesh
+draw_lightweight_mesh!(ax, tg.mesh)
 
 # Plot a single track, purposefully selected to look nice
 initial_track = tg.tracks[2][1]
