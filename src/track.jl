@@ -1,4 +1,13 @@
 
+"""
+    Forward
+    Backward
+
+Direction types for track traversal.
+
+- `Forward`: Traverse track from entry point to exit point
+- `Backward`: Traverse track from exit point to entry point
+"""
 @enum DirectionType begin
     Forward
     Backward
