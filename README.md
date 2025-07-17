@@ -18,7 +18,7 @@ RayTracing.jl implements the **Method of Characteristics (MOC)** for solving the
 
 ## Demo
 
-This demo showcases the ray tracing algorithm. The first animation shows ray tracing without the mesh, while the second shows ray tracing with the mesh overlay. The mesh uses a simple pin-cell geometry, demonstrating how superposition of tracks over the mesh generates segments.
+This demo showcases the ray tracing algorithm. The first animation shows ray tracing without the mesh, while the second shows ray tracing with the mesh overlay. The mesh is a simple pin-cell geometry, demonstrating how superposition of tracks over the mesh generates segments.
 
 <p align="center">
     <img width="400" src="demo/cyclic_track_no_mesh.gif" alt="Cyclic Ray Tracing">
