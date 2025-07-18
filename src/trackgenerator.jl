@@ -4,9 +4,9 @@
 
 Main structure for ray tracing in unstructured meshes using the Method of Characteristics.
 
-Generates and manages neutron ray trajectories across a 2D domain for transport calculations.
-Tracks are organized by azimuthal angle and form closed loops through boundary interactions,
-enabling iterative transport sweeps.
+Generates and manages neutron ray trajectories across a 2D domain for transport calculations. Tracks
+are organized by azimuthal angle and form closed loops through boundary interactions, enabling
+iterative transport sweeps.
 
 ## Key Fields
 - `mesh`: Computational mesh containing geometry and cell information
@@ -52,7 +52,7 @@ end
 function show(io::IO, t::TrackGenerator)
     @unpack azimuthal_quadrature, n_total_tracks, volume_correction = t
     @unpack δs, ϕs = azimuthal_quadrature
-    n_azim_2 = nazim2(azimuthal_quadrature)
+    n_azim_2 = n_azim_half(azimuthal_quadrature)
 
     # println(io, typeof(t))
     println(io, "  Number of azimuthal angles in (0, π): ", n_azim_2)
@@ -71,11 +71,11 @@ origins_in_y(n_tracks_x, i, j) = !origins_in_x(n_tracks_x, i, j)
         tiny_step::T=1e-8, volume_correction=false
     ) where {T<:Real}
 
-Initialize a [`TrackGenerator`](@ref) using an [`UnstructuredDiscreteModel`](@ref) which
-holds mesh related information, the number of azimuthal angles `n_azim` and the azimuthal
-spacing `δ`. The optional attributes are `tiny_step`, which is used in the track's
-segmentation routine, and `volume_correction`, which allows for cell volume correction since
-the ray tracing algorithm yields to approximate volumes.
+Initialize a [`TrackGenerator`](@ref) using an [`UnstructuredDiscreteModel`](@ref) which holds mesh
+related information, the number of azimuthal angles `n_azim` and the azimuthal spacing `δ`. The
+optional attributes are `tiny_step`, which is used in the track's segmentation routine, and
+`volume_correction`, which allows for cell volume correction since the ray tracing algorithm yields
+to approximate volumes.
 """
 function TrackGenerator(
     model::UnstructuredDiscreteModel, n_azim::Int, δ::T;
@@ -86,14 +86,14 @@ function TrackGenerator(
     Δx, Δy = width(mesh), height(mesh)
 
     azimuthal_quadrature = AzimuthalQuadrature(Val(n_azim), δ)
-    n_azim_2 = nazim2(azimuthal_quadrature)
-    n_azim_4 = nazim4(azimuthal_quadrature)
+    n_azim_2 = n_azim_half(azimuthal_quadrature)
+    n_azim_4 = n_azim_quad(azimuthal_quadrature)
 
     n_tracks_x = Vector{Int}(undef, n_azim_2)
     n_tracks_y = Vector{Int}(undef, n_azim_2)
     n_tracks = Vector{Int}(undef, n_azim_2)
 
-    for i in right_dir(azimuthal_quadrature)
+    for i in azimuthal_quadrant_1(azimuthal_quadrature)
         φ = π / n_azim_2 * (i - 1 / 2)
 
         n_tracks_x[i] = floor(Δx / δ * abs(sin(φ))) + 1
@@ -101,7 +101,7 @@ function TrackGenerator(
         n_tracks[i] = n_tracks_x[i] + n_tracks_y[i]
 
         # suplementary angles:
-        j = suplementary_idx(azimuthal_quadrature, i)
+        j = supplementary_azimuthal_idx(azimuthal_quadrature, i)
         n_tracks_x[j] = n_tracks_x[i]
         n_tracks_y[j] = n_tracks_y[i]
         n_tracks[j] = n_tracks[i]
@@ -110,7 +110,7 @@ function TrackGenerator(
     n_total_tracks = sum(n_tracks)
 
     tracks = Vector{Vector{Track}}(undef, n_azim_2)
-    for i in both_dir(azimuthal_quadrature)
+    for i in azimuthal_half_plane(azimuthal_quadrature)
         tracks[i] = Vector{Track}(undef, n_tracks[i])
     end
 
@@ -127,19 +127,17 @@ end
 """
     trace!(t::TrackGenerator)
 
-Computes and fills both the azimuthal quadrature and cyclic tracks around the rectangular
-domain using the provided azimuthal angles and spacing when defining the [`TrackGenerator`](@ref)
-`t`.
+Computes and fills both the azimuthal quadrature and cyclic tracks around the rectangular domain
+using the provided azimuthal angles and spacing when defining the [`TrackGenerator`](@ref) `t`.
 """
 function trace!(t::TrackGenerator{T}) where {T}
     @unpack mesh, bcs, azimuthal_quadrature = t
     @unpack n_tracks_x, n_tracks_y, n_tracks = t
     @unpack tracks, tracks_by_uid = t
     @unpack bb_min, bb_max = mesh
-    @unpack δs, ϕs, ωₐ = azimuthal_quadrature
+    @unpack δs, ϕs = azimuthal_quadrature
 
-    n_azim_2 = nazim2(azimuthal_quadrature)
-    n_azim_4 = nazim4(azimuthal_quadrature)
+    n_azim_2 = n_azim_half(azimuthal_quadrature)
 
     # effective azimuthal spacings, used for some computations but not stored
     δx = Vector{T}(undef, n_azim_2)
@@ -147,7 +145,7 @@ function trace!(t::TrackGenerator{T}) where {T}
 
     Δx, Δy = width(mesh), height(mesh)
 
-    for i in right_dir(azimuthal_quadrature)
+    for i in azimuthal_quadrant_1(azimuthal_quadrature)
 
         # effective azimuthal angle
         ϕ = ϕs[i] = atan((Δy * n_tracks_x[i]) / (Δx * n_tracks_y[i]))
@@ -158,7 +156,7 @@ function trace!(t::TrackGenerator{T}) where {T}
         δs[i] = δx[i] * sin(ϕ)
 
         # suplementary angles:
-        j = suplementary_idx(azimuthal_quadrature, i)
+        j = supplementary_azimuthal_idx(azimuthal_quadrature, i)
         ϕs[j] = π - ϕ
         δx[j] = δx[i]
         δy[j] = δy[i]
@@ -177,7 +175,7 @@ function trace!(t::TrackGenerator{T}) where {T}
         right=Segment(p3, p4), left=Segment(p1, p2))
 
     uid = 1
-    for i in both_dir(azimuthal_quadrature)
+    for i in azimuthal_half_plane(azimuthal_quadrature)
 
         # get azimuthal angle
         ϕ = ϕs[i]
@@ -186,13 +184,13 @@ function trace!(t::TrackGenerator{T}) where {T}
         for j in 1:n_tracks[i]
 
             if origins_in_x(n_tracks_x, i, j)
-                if points_right(azimuthal_quadrature, i)
+                if is_rightward_direction(azimuthal_quadrature, i)
                     p = Point2D(δx[i] * (n_tracks_x[i] - j + 1 / 2), 0)
                 else
                     p = Point2D(δx[i] * (j - 1 / 2), 0)
                 end
             else
-                if points_right(azimuthal_quadrature, i)
+                if is_rightward_direction(azimuthal_quadrature, i)
                     p = Point2D(0, δy[i] * (j - n_tracks_x[i] - 1 / 2))
                 else
                     p = Point2D(Δx, δy[i] * (j - n_tracks_x[i] - 1 / 2))
@@ -207,7 +205,7 @@ function trace!(t::TrackGenerator{T}) where {T}
             if !(0 ≤ q[1] ≤ Δx)
 
                 # it can exit at x = Δx if it points to the right
-                if points_right(azimuthal_quadrature, i)
+                if is_rightward_direction(azimuthal_quadrature, i)
                     q = Point2D(Δx, p[2] + m * (Δx - p[1]))
 
                 else
@@ -232,7 +230,7 @@ function trace!(t::TrackGenerator{T}) where {T}
             BCBwd = boundary_condition(p, sides, bcs)
 
             # alternative method
-            if points_right(azimuthal_quadrature, i)
+            if is_rightward_direction(azimuthal_quadrature, i)
                 BCFwd1 = j ≤ n_tracks_y[i] ? bcs.right : bcs.top
                 BCBwd1 = j ≤ n_tracks_x[i] ? bcs.bottom : bcs.left
             else
@@ -296,7 +294,7 @@ function next_track_fwd(t::TrackGenerator, track::Track)
     @unpack n_tracks_x, n_tracks_y, n_tracks = t
     @unpack azim_idx, track_idx = track
 
-    i, j, k = azim_idx, track_idx, suplementary_idx(azimuthal_quadrature, azim_idx)
+    i, j, k = azim_idx, track_idx, supplementary_azimuthal_idx(azimuthal_quadrature, azim_idx)
 
     BCFwd = bc_fwd(track)
 
@@ -324,7 +322,7 @@ function next_track_bwd(t::TrackGenerator, track::Track)
     @unpack n_tracks_x, n_tracks_y, n_tracks = t
     @unpack azim_idx, track_idx = track
 
-    i, j, k = azim_idx, track_idx, suplementary_idx(azimuthal_quadrature, azim_idx)
+    i, j, k = azim_idx, track_idx, supplementary_azimuthal_idx(azimuthal_quadrature, azim_idx)
 
     BCBwd = bc_bwd(track)
 
@@ -350,9 +348,9 @@ end
 """
     segmentize!(t::TrackGenerator)
 
-Segmentize tracks, i.e. divide the tracks in segments generated by the intersections between
-the cells or elements of the mesh. This function call is intended to be done after calling
-`[trace!]`(@ref).
+Segmentize tracks, i.e. divide the tracks in segments generated by the intersections
+between the cells or elements of the mesh. This function call is intended to be done after
+calling `[trace!]`(@ref).
 """
 function segmentize!(t::TrackGenerator{T}; k::Int=5, rtol::Real=Base.rtoldefault(T)) where {T}
     @unpack tracks_by_uid = t
@@ -371,7 +369,7 @@ end
 function fill_volumes(t::TrackGenerator{T}, i) where {T}
     @unpack tracks_by_uid, azimuthal_quadrature, volumes = t
     @unpack δs = azimuthal_quadrature
-    n_azim_2 = nazim2(azimuthal_quadrature)
+    n_azim_2 = n_azim_half(azimuthal_quadrature)
 
     fill!(volumes, zero(T))
 

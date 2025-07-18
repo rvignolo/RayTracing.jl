@@ -2,20 +2,63 @@
 @doc raw"""
     general_form(xi::Point2D, xo::Point2D)
 
-Returns the general form equation of a line that passes through points `xi` and `xo` as a
-[`SVector`](@ref) which holds A, B and C such that:
-```math
-A \cdot x + B \cdot y +  C = 0.
+Compute the general form equation of a line passing through two points.
+
+This function converts two points into the general form equation `Ax + By + C = 0` that
+represents the line passing through both points. The coefficients are normalized for
+numerical stability.
+
+## Arguments
+- `xi::Point2D`: First point on the line (entry point)
+- `xo::Point2D`: Second point on the line (exit point)
+
+## Returns
+- `SVector{3,T}`: Coefficients [A, B, C] of the line equation `Ax + By + C = 0`
+
+## Mathematical Details
+
+The general form is computed using the two-point form of a line equation:
+- `A = y₁ - y₂` (difference in y-coordinates)
+- `B = x₂ - x₁` (difference in x-coordinates, with sign flipped)
+- `C = x₁·y₂ - x₂·y₁` (determinant-like term)
+
+The coefficients are then normalized by dividing by `√(A² + B² + C²)` for numerical stability.
+
+## Throws
+- `ArgumentError`: If the two points are identical (degenerate line)
+
+## Example
+```julia
+p1 = Point2D(0.0, 0.0)
+p2 = Point2D(1.0, 1.0)
+ABC = general_form(p1, p2)  # Returns [A, B, C] for line y = x
 ```
+
+## Notes
+
+- The function is optimized for performance, avoiding matrix operations
+- Normalization prevents numerical issues in subsequent calculations
+- Used extensively in ray tracing for track-mesh intersection calculations
 """
 function general_form(xi::Point2D, xo::Point2D)
-    A = xi[2] - xo[2]
-    B = xo[1] - xi[1]
-    C = xi[1] * xo[2] - xo[1] * xi[2]
+    # Check for degenerate case (identical points)
+    if isapprox(xi, xo)
+        throw(ArgumentError("Cannot form a line from identical points: $(xi) and $(xo)"))
+    end
+
+    # Compute coefficients using direct formula (faster than linear algebra)
+    A = xi[2] - xo[2]  # y₁ - y₂
+    B = xo[1] - xi[1]  # x₂ - x₁
+    C = xi[1] * xo[2] - xo[1] * xi[2]  # x₁·y₂ - x₂·y₁
+
+    # Create coefficient vector and normalize for numerical stability
+    # Note: For distinct points, norm cannot be zero mathematically
     ABC = SVector(A, B, C)
-    ABC /= norm(ABC) # for numerical reasons (?)
+    ABC /= norm(ABC)
+
     return ABC
 end
+
 # the function above is faster than using linear algebra:
 # [x1 y1; x2 y2] ⋅ [Â, B̂] = [-1, -1] yields to solution for Â and B̂ such that
 # Â ⋅ x + B̂ ⋅ y + 1 = 0. Here we make it faster.
@@ -24,12 +67,83 @@ end
 # x = F \ b
 # ABC = vcat(b, 1) # and then we can normalize
 
-# We could use LazySets.jl for some part of this particular function but it seems slow!
 """
     intersections(mesh::Mesh, cell_id::Int, track::Track)
 
-Computes the entry and exit points of a given `track` that is known to cross element with id
-`cell_id`.
+Compute the entry and exit points where a track intersects a mesh element.
+
+This function calculates the intersection points between a ray track and the boundaries of a
+specific mesh element. It handles various geometric cases including parallel lines, vertex
+intersections, and multiple intersection points.
+
+## Arguments
+- `mesh::Mesh`: Computational mesh containing geometry and topology
+- `cell_id::Int`: ID of the mesh element to check for intersections
+- `track::Track`: Ray track with general form equation `track.ABC`
+
+## Returns
+- `Tuple{Point2D, Point2D}`: Entry and exit points `(xi, xo)` of the track through the element
+
+## Algorithm Overview
+
+1. **Element Boundary Traversal**: Iterates through each edge of the mesh element
+2. **Line-Line Intersection**: Computes intersection between track and each element edge
+3. **Validation**: Filters intersections to ensure they lie on the actual edge segments
+4. **Point Selection**: Chooses the appropriate entry/exit points based on intersection count
+5. **Ordering**: Orders points according to track direction (azimuthal angle)
+
+## Intersection Cases Handled
+
+### Normal Case (2 intersections)
+- Track enters and exits through different edges
+- Returns the two intersection points ordered by track direction
+
+### Multiple Intersections (3-4 points)
+- Track may intersect at vertices or have complex geometry
+- Selects the pair of points with maximum separation distance
+- Orders them according to track direction
+
+### Degenerate Cases
+- **Parallel lines**: Track parallel to element edge (handled by other edges)
+- **Vertex intersection**: Track passes exactly through a vertex
+- **Single intersection**: Track grazes the element (returns zero points)
+- **No intersections**: Track misses the element (returns zero points)
+
+## Geometric Assumptions
+
+- The track is assumed to intersect the element (caller responsibility)
+- Mesh elements are convex polygons (typically triangles or quadrilaterals)
+- Track is represented by a straight line segment
+- Intersection points are computed with finite precision
+
+## Performance Notes
+
+- Uses pre-allocated `MVector` for intersection points to avoid allocations
+- Early termination for parallel lines to avoid unnecessary computations
+- Optimized for typical cases (2 intersections) with fallback for edge cases
+
+## Example
+
+```julia
+# Compute intersections for a track through element 5
+xi, xo = intersections(mesh, 5, track)
+
+# Check if track actually intersects the element
+if !isapprox(xi, Point2D(0, 0)) || !isapprox(xo, Point2D(0, 0))
+    println("Track enters at $(xi) and exits at $(xo)")
+else
+    println("No valid intersections found")
+end
+```
+
+## Notes
+
+- Returns `(Point2D(0,0), Point2D(0,0))` for cases with no valid intersections
+- The function is designed for robustness over speed in edge cases
+- Used extensively in track segmentation for neutron transport calculations
+- Intersection points are ordered according to the track's azimuthal direction
+
+See also: [`intersection`](@ref), [`order_intersection_points`](@ref), [`general_form`](@ref)
 """
 function intersections(
     mesh::Mesh, cell_id::Int32, track::Track{BIn,BOut,DFwd,DBwd,T}
