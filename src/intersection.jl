@@ -59,14 +59,6 @@ function general_form(xi::Point2D, xo::Point2D)
     return ABC
 end
 
-# the function above is faster than using linear algebra:
-# [x1 y1; x2 y2] ⋅ [Â, B̂] = [-1, -1] yields to solution for Â and B̂ such that
-# Â ⋅ x + B̂ ⋅ y + 1 = 0. Here we make it faster.
-# F = transpose(hcat(xi, xo))
-# b = SVector(-1, -1)
-# x = F \ b
-# ABC = vcat(b, 1) # and then we can normalize
-
 """
     intersections(mesh::Mesh, cell_id::Int, track::Track)
 
@@ -122,20 +114,6 @@ intersections, and multiple intersection points.
 - Early termination for parallel lines to avoid unnecessary computations
 - Optimized for typical cases (2 intersections) with fallback for edge cases
 
-## Example
-
-```julia
-# Compute intersections for a track through element 5
-xi, xo = intersections(mesh, 5, track)
-
-# Check if track actually intersects the element
-if !isapprox(xi, Point2D(0, 0)) || !isapprox(xo, Point2D(0, 0))
-    println("Track enters at $(xi) and exits at $(xo)")
-else
-    println("No valid intersections found")
-end
-```
-
 ## Notes
 
 - Returns `(Point2D(0,0), Point2D(0,0))` for cases with no valid intersections
@@ -146,26 +124,34 @@ end
 See also: [`intersection`](@ref), [`order_intersection_points`](@ref), [`general_form`](@ref)
 """
 function intersections(
-    mesh::Mesh, cell_id::Int32, track::Track{BIn,BOut,DFwd,DBwd,T}
-) where {BIn,BOut,DFwd,DBwd,T}
+    mesh::Mesh, cell_id::Int32, track::Track{BCFwd,BCBwd,DFwd,DBwd,T}
+) where {BCFwd,BCBwd,DFwd,DBwd,T}
+
+    # Validate inputs
+    cell_id > 0 || throw(ArgumentError("Cell ID must be positive, got: $cell_id"))
+    cell_id <= length(mesh.cell_nodes) || throw(ArgumentError("Cell ID out of range: $cell_id"))
+
     @unpack model, cell_nodes = mesh
-
     node_coordinates = get_node_coordinates(get_grid(model))
-    node_ids = cell_nodes[cell_id]
+    cell_node_ids = cell_nodes[cell_id]
 
-    int_points = MVector{4,Point2D{T}}(
+    # Validate node_ids
+    length(cell_node_ids) >= 3 || throw(ArgumentError("Element must have at least 3 nodes"))
+
+    intersection_points = MVector{4,Point2D{T}}(
         Point2D(0, 0), Point2D(0, 0), Point2D(0, 0), Point2D(0, 0)
     )
 
-    n_int = 0
-    parallel_found = false
-    for i in eachindex(node_ids)
+    num_intersections = 0
+    has_parallel_edge = false
 
-        j = i == lastindex(node_ids) ? 1 : i + 1
+    for edge_idx in eachindex(cell_node_ids)
+
+        next_edge_idx = edge_idx == lastindex(cell_node_ids) ? 1 : edge_idx + 1
 
         # get node coordinates and cast them to Point2D
-        p1 = convert(Point2D{T}, node_coordinates[node_ids[i]])
-        p2 = convert(Point2D{T}, node_coordinates[node_ids[j]])
+        p1 = convert(Point2D{T}, node_coordinates[cell_node_ids[edge_idx]])
+        p2 = convert(Point2D{T}, node_coordinates[cell_node_ids[next_edge_idx]])
 
         # compute general form equation for the selected element face
         ABC = general_form(p1, p2)
@@ -177,7 +163,7 @@ function intersections(
         # cross at all. Either way, we just ignore this case because we can compute the
         # intersections using the other faces.
         if are_parallel
-            parallel_found = true
+            has_parallel_edge = true
             continue
 
         elseif !point_in_segment(p1, p2, x_int)
@@ -186,18 +172,18 @@ function intersections(
 
         else
             # this is a valid intersection, store it
-            n_int += 1
-            int_points[n_int] = x_int
+            num_intersections += 1
+            intersection_points[num_intersections] = x_int
         end
     end
 
     # now let's check all the possible situations and handle extreme cases
-    if n_int in (3, 4)
+    if num_intersections in (3, 4)
         ℓ = zero(T)
         # get the points that have the maximun distance between
-        for i in 2:n_int, j in i:n_int
-            x1 = int_points[i-1]
-            x2 = int_points[j]
+        for i in 2:num_intersections, j in i:num_intersections
+            x1 = intersection_points[i-1]
+            x2 = intersection_points[j]
             ℓi = norm(x1 - x2)
             if ℓi > ℓ
                 x_int1 = x1
@@ -207,16 +193,16 @@ function intersections(
         end
         return order_intersection_points(track, x_int1, x_int2)
 
-    elseif n_int == 2 && parallel_found
+    elseif num_intersections == 2 && has_parallel_edge
 
-        x_int1 = int_points[1]
-        x_int2 = int_points[2]
+        x_int1 = intersection_points[1]
+        x_int2 = intersection_points[2]
         return order_intersection_points(track, x_int1, x_int2)
 
-    elseif n_int == 2 && !parallel_found
+    elseif num_intersections == 2 && !has_parallel_edge
 
-        x_int1 = int_points[1]
-        x_int2 = int_points[2]
+        x_int1 = intersection_points[1]
+        x_int2 = intersection_points[2]
 
         if isapprox(x_int1, x_int2)
             # do nothing and move a tiny step forward in the parent function, we are on a
@@ -225,7 +211,7 @@ function intersections(
         else
             return order_intersection_points(track, x_int1, x_int2)
         end
-    elseif iszero(n_int) || isone(n_int)
+    elseif iszero(num_intersections) || isone(num_intersections)
         # the parent function will move a tiny step further
         return Point2D{T}(0, 0), Point2D{T}(0, 0)
         # error("This is an unexpected case. Please, submit an issue.")
@@ -233,34 +219,83 @@ function intersections(
 end
 
 """
-    intersection(ABC1, ABC2)
+    intersection(ABC1::AbstractVector, ABC2::AbstractVector)
 
-Computes the intersection between two lines with general form equations given by `ABC1` and
-`ABC2`. It also indicates if the lines are parallel.
+Compute the intersection point between two lines given in general form.
+
+This function finds the intersection point of two lines represented by their general form
+equations `A₁x + B₁y + C₁ = 0` and `A₂x + B₂y + C₂ = 0`. It also detects when the lines
+are parallel (no intersection).
+
+## Arguments
+- `ABC1::AbstractVector`: Coefficients [A₁, B₁, C₁] of the first line equation
+- `ABC2::AbstractVector`: Coefficients [A₂, B₂, C₂] of the second line equation
+
+## Returns
+- `Tuple{Bool, Point2D}`: `(are_parallel, intersection_point)`
+  - `are_parallel`: `true` if lines are parallel, `false` otherwise
+  - `intersection_point`: Point of intersection (meaningful only if `are_parallel = false`)
+
+## Mathematical Details
+
+The intersection is computed by solving the system of linear equations:
+```
+A₁x + B₁y = -C₁
+A₂x + B₂y = -C₂
+```
+
+Using Cramer's rule:
+- **Determinant**: `det = A₁B₂ - A₂B₁`
+- **Parallel lines**: `det ≈ 0` (lines are parallel or coincident)
+- **Intersection point**:
+  - `x = (B₁C₂ - B₂C₁) / det`
+  - `y = (A₂C₁ - A₁C₂) / det`
+
+## Example
+
+```julia
+# Line 1: x + y - 1 = 0
+ABC1 = [1.0, 1.0, -1.0]
+
+# Line 2: x - y - 1 = 0
+ABC2 = [1.0, -1.0, -1.0]
+
+are_parallel, point = intersection(ABC1, ABC2)
+# Returns: (false, Point2D(1.0, 0.0))
+```
+
+## Notes
+
+- Uses `isapprox` for parallel detection to handle numerical precision issues
+- Returns `Point2D(0, 0)` when lines are parallel (convention for no intersection)
+- The function is optimized for performance in ray tracing applications
+- Coefficients should be normalized for best numerical stability
+
+See also: [`general_form`](@ref), [`intersections`](@ref)
 """
 function intersection(ABC1::AbstractVector, ABC2::AbstractVector)
-    a = ABC1[2] * ABC2[1]
-    b = ABC2[2] * ABC1[1]
-    x = y = zero(a)
-    are_parallel = isapprox(a, b)
-    if !are_parallel
-        det = a - b
-        x = (ABC1[3] * ABC2[2] - ABC2[3] * ABC1[2]) / det
-        y = (ABC1[1] * ABC2[3] - ABC2[1] * ABC1[3]) / det
+    # Extract coefficients for clarity
+    A1, B1, C1 = ABC1[1], ABC1[2], ABC1[3]
+    A2, B2, C2 = ABC2[1], ABC2[2], ABC2[3]
+
+    # Compute determinant for parallel detection
+    determinant = A1 * B2 - A2 * B1
+
+    # Check if lines are parallel (determinant ≈ 0)
+    z = zero(determinant)
+    are_parallel = isapprox(determinant, z)
+
+    if are_parallel
+        # Lines are parallel or coincident - no unique intersection
+        return true, Point2D(z, z)
+    else
+        # Compute intersection point using Cramer's rule
+        x = (B1 * C2 - B2 * C1) / determinant
+        y = (A2 * C1 - A1 * C2) / determinant
+
+        return false, Point2D(x, y)
     end
-    return are_parallel, Point2D(x, y)
 end
-
-# this one returns a matrix even if F is not invertible (has the same speed as the above)
-# function intersection(ABC1, ABC2)
-#     F = @SMatrix [ABC1[1] ABC1[2]
-#                   ABC2[1] ABC2[2]]
-#     b = @SVector [ABC1[3], ABC2[3]]
-
-#     x = F \ (-b)
-
-#     return Point2D(x[1], x[2])
-# end
 
 function order_intersection_points(track::Track, x1::Point2D, x2::Point2D)
     @unpack ϕ = track
