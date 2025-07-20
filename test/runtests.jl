@@ -19,9 +19,9 @@ model = DiscreteModelFromFile(jsonfile)
     end
 
     @testset "Azimuthal quadrature" begin
-        @test isequal(RayTracing.nazim(tg.azimuthal_quadrature), 8)
-        @test isequal(RayTracing.nazim2(tg.azimuthal_quadrature), 4)
-        @test isequal(RayTracing.nazim4(tg.azimuthal_quadrature), 2)
+        @test isequal(RayTracing.n_azim_total(tg.azimuthal_quadrature), 8)
+        @test isequal(RayTracing.n_azim_half(tg.azimuthal_quadrature), 4)
+        @test isequal(RayTracing.n_azim_quad(tg.azimuthal_quadrature), 2)
         @test isapprox(tg.azimuthal_quadrature.δ, 0.02)
         @test all(isapprox.(tg.azimuthal_quadrature.δs, 0.01994243696980254))
         @test tg.azimuthal_quadrature.ϕs ≈ [0.39670866289121387, 1.1740876639036828, 1.9675049896861103, 2.7448839906985794]
