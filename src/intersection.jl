@@ -1,5 +1,15 @@
+"""
+A maximum of 4 intersections can be found in a convex polygon, if we take into account
+intersections at the vertices.
+"""
+const MAX_INTERSECTIONS = 4
 
-@doc raw"""
+"""
+The expected number of intersections.
+"""
+const EXPECTED_INTERSECTIONS = 2
+
+"""
     general_form(xi::Point2D, xo::Point2D)
 
 Compute the general form equation of a line passing through two points.
@@ -22,7 +32,8 @@ The general form is computed using the two-point form of a line equation:
 - `B = x₂ - x₁` (difference in x-coordinates, with sign flipped)
 - `C = x₁·y₂ - x₂·y₁` (determinant-like term)
 
-The coefficients are then normalized by dividing by `√(A² + B² + C²)` for numerical stability.
+The coefficients are then normalized by dividing by `√(A² + B² + C²)` for numerical
+stability.
 
 ## Throws
 - `ArgumentError`: If the two points are identical (degenerate line)
@@ -41,18 +52,18 @@ ABC = general_form(p1, p2)  # Returns [A, B, C] for line y = x
 - Used extensively in ray tracing for track-mesh intersection calculations
 """
 function general_form(xi::Point2D, xo::Point2D)
-    # Check for degenerate case (identical points)
+
     if isapprox(xi, xo)
         throw(ArgumentError("Cannot form a line from identical points: $(xi) and $(xo)"))
     end
 
-    # Compute coefficients using direct formula (faster than linear algebra)
-    A = xi[2] - xo[2]  # y₁ - y₂
-    B = xo[1] - xi[1]  # x₂ - x₁
-    C = xi[1] * xo[2] - xo[1] * xi[2]  # x₁·y₂ - x₂·y₁
+    x1, y1 = xi
+    x2, y2 = xo
 
-    # Create coefficient vector and normalize for numerical stability
-    # Note: For distinct points, norm cannot be zero mathematically
+    A = y1 - y2
+    B = x2 - x1
+    C = x1 * y2 - x2 * y1
+
     ABC = SVector(A, B, C)
     ABC /= norm(ABC)
 
@@ -74,14 +85,16 @@ intersections, and multiple intersection points.
 - `track::Track`: Ray track with general form equation `track.ABC`
 
 ## Returns
-- `Tuple{Point2D, Point2D}`: Entry and exit points `(xi, xo)` of the track through the element
+- `Tuple{Point2D, Point2D}`: Entry and exit points `(xi, xo)` of the track through the
+  element
 
 ## Algorithm Overview
 
 1. **Element Boundary Traversal**: Iterates through each edge of the mesh element
 2. **Line-Line Intersection**: Computes intersection between track and each element edge
 3. **Validation**: Filters intersections to ensure they lie on the actual edge segments
-4. **Point Selection**: Chooses the appropriate entry/exit points based on intersection count
+4. **Point Selection**: Chooses the appropriate entry/exit points based on intersection
+   count
 5. **Ordering**: Orders points according to track direction (azimuthal angle)
 
 ## Intersection Cases Handled
@@ -91,7 +104,7 @@ intersections, and multiple intersection points.
 - Returns the two intersection points ordered by track direction
 
 ### Multiple Intersections (3-4 points)
-- Track may intersect at vertices or have complex geometry
+- Track may intersect at vertices
 - Selects the pair of points with maximum separation distance
 - Orders them according to track direction
 
@@ -121,13 +134,13 @@ intersections, and multiple intersection points.
 - Used extensively in track segmentation for neutron transport calculations
 - Intersection points are ordered according to the track's azimuthal direction
 
-See also: [`intersection`](@ref), [`order_intersection_points`](@ref), [`general_form`](@ref)
+See also: [`intersection`](@ref), [`order_intersection_points`](@ref),
+[`general_form`](@ref)
 """
 function intersections(
     mesh::Mesh, cell_id::Int32, track::Track{BCFwd,BCBwd,DFwd,DBwd,T}
 ) where {BCFwd,BCBwd,DFwd,DBwd,T}
 
-    # Validate inputs
     cell_id > 0 || throw(ArgumentError("Cell ID must be positive, got: $cell_id"))
     cell_id <= length(mesh.cell_nodes) || throw(ArgumentError("Cell ID out of range: $cell_id"))
 
@@ -135,86 +148,82 @@ function intersections(
     node_coordinates = get_node_coordinates(get_grid(model))
     cell_node_ids = cell_nodes[cell_id]
 
-    # Validate node_ids
     length(cell_node_ids) >= 3 || throw(ArgumentError("Element must have at least 3 nodes"))
 
-    intersection_points = MVector{4,Point2D{T}}(
-        Point2D(0, 0), Point2D(0, 0), Point2D(0, 0), Point2D(0, 0)
-    )
+    intersection_points = MVector{MAX_INTERSECTIONS,Point2D{T}}(undef)
 
+    # Based on the number of intersections, we can determine the type of intersection
     num_intersections = 0
-    has_parallel_edge = false
 
     for edge_idx in eachindex(cell_node_ids)
 
         next_edge_idx = edge_idx == lastindex(cell_node_ids) ? 1 : edge_idx + 1
 
-        # get node coordinates and cast them to Point2D
+        # Get node coordinates and cast them to Point2D
         p1 = convert(Point2D{T}, node_coordinates[cell_node_ids[edge_idx]])
         p2 = convert(Point2D{T}, node_coordinates[cell_node_ids[next_edge_idx]])
 
-        # compute general form equation for the selected element face
+        # Compute general form equation for the selected element face
         ABC = general_form(p1, p2)
 
-        # compute intersections between track and element face
-        are_parallel, x_int = intersection(track.ABC, ABC)
+        # Compute intersections between track and element face
+        parallel, x_int = intersection(track.ABC, ABC)
 
-        # if the track is parallel to the element face, it can be on top of it or do not
-        # cross at all. Either way, we just ignore this case because we can compute the
-        # intersections using the other faces.
-        if are_parallel
-            has_parallel_edge = true
+        if parallel
+            # When the track is parallel to an edge, no unique intersection point exists
+            # (track either lies along the edge or never intersects it). Skip this edge
+            # since valid intersections will be found with non-parallel edges.
             continue
 
         elseif !point_in_segment(p1, p2, x_int)
-            # if the intersection is outside the face, avoid it
+            # Skip intersections that occur outside the actual edge segment.
             continue
 
         else
-            # this is a valid intersection, store it
+            # Otherwise, this is a valid intersection
             num_intersections += 1
             intersection_points[num_intersections] = x_int
         end
     end
 
-    # now let's check all the possible situations and handle extreme cases
-    if num_intersections in (3, 4)
+    if num_intersections in (MAX_INTERSECTIONS - 1, MAX_INTERSECTIONS)
+
+        # There are intersections at the vertices, we need to find the two points that are
+        # the farthest apart.
         ℓ = zero(T)
-        # get the points that have the maximun distance between
-        for i in 2:num_intersections, j in i:num_intersections
-            x1 = intersection_points[i-1]
-            x2 = intersection_points[j]
-            ℓi = norm(x1 - x2)
+        p = q = u = v = Point2D{T}(0, 0)
+        for (i, j) in combinations(1:num_intersections, 2)
+            u = intersection_points[i]
+            v = intersection_points[j]
+            ℓi = norm(u - v)
             if ℓi > ℓ
-                x_int1 = x1
-                x_int2 = x2
+                p = u
+                q = v
                 ℓ = ℓi
             end
         end
-        return order_intersection_points(track, x_int1, x_int2)
+        return order_intersection_points(track, p, q)
 
-    elseif num_intersections == 2 && has_parallel_edge
+    elseif isequal(num_intersections, EXPECTED_INTERSECTIONS)
 
-        x_int1 = intersection_points[1]
-        x_int2 = intersection_points[2]
-        return order_intersection_points(track, x_int1, x_int2)
+        p, q = intersection_points
 
-    elseif num_intersections == 2 && !has_parallel_edge
-
-        x_int1 = intersection_points[1]
-        x_int2 = intersection_points[2]
-
-        if isapprox(x_int1, x_int2)
-            # do nothing and move a tiny step forward in the parent function, we are on a
-            # vertex
-            return x_int1, x_int2
+        if isapprox(p, q)
+            # We are on vertex, return the point itself and the parent function will move
+            # a tiny step forward
+            return p, q
         else
-            return order_intersection_points(track, x_int1, x_int2)
+            return order_intersection_points(track, p, q)
         end
+
     elseif iszero(num_intersections) || isone(num_intersections)
-        # the parent function will move a tiny step further
+        # The parent function needs to handle this case, probably by moving a tiny step
+        # forward
         return Point2D{T}(0, 0), Point2D{T}(0, 0)
-        # error("This is an unexpected case. Please, submit an issue.")
+    else
+        # This should never happen with a convex polygon, but handle gracefully
+        @warn "Unexpected number of intersections: $num_intersections"
+        return Point2D{T}(0, 0), Point2D{T}(0, 0)
     end
 end
 
@@ -224,17 +233,17 @@ end
 Compute the intersection point between two lines given in general form.
 
 This function finds the intersection point of two lines represented by their general form
-equations `A₁x + B₁y + C₁ = 0` and `A₂x + B₂y + C₂ = 0`. It also detects when the lines
-are parallel (no intersection).
+equations `A₁x + B₁y + C₁ = 0` and `A₂x + B₂y + C₂ = 0`. It also detects when the lines are
+parallel (no intersection).
 
 ## Arguments
 - `ABC1::AbstractVector`: Coefficients [A₁, B₁, C₁] of the first line equation
 - `ABC2::AbstractVector`: Coefficients [A₂, B₂, C₂] of the second line equation
 
 ## Returns
-- `Tuple{Bool, Point2D}`: `(are_parallel, intersection_point)`
-  - `are_parallel`: `true` if lines are parallel, `false` otherwise
-  - `intersection_point`: Point of intersection (meaningful only if `are_parallel = false`)
+- `Tuple{Bool, Point2D}`: `(parallel, intersection_point)`
+  - `parallel`: `true` if lines are parallel, `false` otherwise
+  - `intersection_point`: Point of intersection (meaningful only if `parallel = false`)
 
 ## Mathematical Details
 
@@ -260,7 +269,7 @@ ABC1 = [1.0, 1.0, -1.0]
 # Line 2: x - y - 1 = 0
 ABC2 = [1.0, -1.0, -1.0]
 
-are_parallel, point = intersection(ABC1, ABC2)
+parallel, point = intersection(ABC1, ABC2)
 # Returns: (false, Point2D(1.0, 0.0))
 ```
 
@@ -274,22 +283,17 @@ are_parallel, point = intersection(ABC1, ABC2)
 See also: [`general_form`](@ref), [`intersections`](@ref)
 """
 function intersection(ABC1::AbstractVector, ABC2::AbstractVector)
-    # Extract coefficients for clarity
     A1, B1, C1 = ABC1[1], ABC1[2], ABC1[3]
     A2, B2, C2 = ABC2[1], ABC2[2], ABC2[3]
 
-    # Compute determinant for parallel detection
     determinant = A1 * B2 - A2 * B1
 
-    # Check if lines are parallel (determinant ≈ 0)
     z = zero(determinant)
-    are_parallel = isapprox(determinant, z)
+    parallel = isapprox(determinant, z)
 
-    if are_parallel
-        # Lines are parallel or coincident - no unique intersection
+    if parallel
         return true, Point2D(z, z)
     else
-        # Compute intersection point using Cramer's rule
         x = (B1 * C2 - B2 * C1) / determinant
         y = (A2 * C1 - A1 * C2) / determinant
 
@@ -297,12 +301,25 @@ function intersection(ABC1::AbstractVector, ABC2::AbstractVector)
     end
 end
 
-function order_intersection_points(track::Track, x1::Point2D, x2::Point2D)
+"""
+    order_intersection_points(track::Track, p::Point2D, q::Point2D)
+
+Order the intersection points according to the track direction.
+
+## Arguments
+- `track::Track`: Track with azimuthal angle `ϕ`
+- `p::Point2D`: First intersection point
+- `q::Point2D`: Second intersection point
+
+## Returns
+- `Tuple{Point2D, Point2D}`: Ordered intersection points `(xi, xo)`
+"""
+function order_intersection_points(track::Track, p::Point2D{T}, q::Point2D{T}) where T
     @unpack ϕ = track
     if isless(ϕ, π / 2)
-        xi, xo = first(x1) < first(x2) ? (x1, x2) : (x2, x1)
+        xi, xo = first(p) < first(q) ? (p, q) : (q, p)
     else
-        xi, xo = first(x1) > first(x2) ? (x1, x2) : (x2, x1)
+        xi, xo = first(p) > first(q) ? (p, q) : (q, p)
     end
     return xi, xo
 end

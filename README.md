@@ -69,8 +69,8 @@ The ray tracing process consists of two main steps:
 2. **Segmentation**: Discretize tracks into segments within mesh elements
 
 | ![](demo/pincell-msh.png) | ![](demo/pincell-tracks.png) | ![](demo/pincell-segments.png) |
-|:-------------:|:-------------:|:-------------:|
-| **Geometry / Mesh** | **Tracks** | **Segments** |
+|:-------------------------:|:----------------------------:|:------------------------------:|
+|    **Geometry / Mesh**    |           **Tracks**         |           **Segments**         |
 
 ## Examples
 
@@ -83,11 +83,10 @@ using Gridap
 # Load mesh from file
 model = DiscreteModelFromFile("mesh.json")
 
-# Configure parameters
+# Configuration parameters
 nφ = 16  # azimuthal angles
 δ = 0.08 # spacing
-bcs = BoundaryConditions(top=Reflective, bottom=Reflective,
-                        left=Reflective, right=Reflective)
+bcs = reflective_boundaries()
 
 # Create and run ray tracing
 tg = TrackGenerator(model, nφ, δ, bcs=bcs)
@@ -104,16 +103,16 @@ plot!(tg, label="Tracks")
 
 ```julia
 # Reflective boundaries (rays bounce back)
-bcs = BoundaryConditions(top=Reflective, bottom=Reflective,
-                        left=Reflective, right=Reflective)
+bcs = reflective_boundaries()
 
 # Periodic boundaries (rays wrap around)
-bcs = BoundaryConditions(top=Periodic, bottom=Periodic,
-                        left=Periodic, right=Periodic)
+bcs = periodic_boundaries()
 
 # Vacuum boundaries (rays exit domain)
-bcs = BoundaryConditions(top=Vacuum, bottom=Vacuum,
-                        left=Vacuum, right=Vacuum)
+bcs = vacuum_boundaries()
+
+# Custom boundary conditions
+bcs = BoundaryConditions(top=Reflective, bottom=Vacuum, right=Periodic, left=Reflective)
 ```
 
 ## Advanced Features

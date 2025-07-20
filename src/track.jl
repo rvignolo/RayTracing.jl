@@ -18,9 +18,9 @@ end
 
 Represents a neutron ray trajectory in a 2D domain for transport calculations.
 
-Each track follows a straight-line path at azimuthal angle `ϕ`, entering at point `p` and exiting at
-point `q`, with total length `ℓ`. The track is discretized into `segments` for finite element
-calculations.
+Each track follows a straight-line path at azimuthal angle `ϕ`, entering at point `p` and
+exiting at point `q`, with total length `ℓ`. The track is discretized into `segments` for
+finite element calculations.
 
 ## Type Parameters
 - `BCFwd`, `BCBwd`: Boundary condition types at forward and backward ends

@@ -1,12 +1,31 @@
 """
+    Boundary{T<:Real}
+
+Represents a boundary of a domain. It is a collection of segments that form the boundary of
+the domain.
+
+## Fields
+- `top::Segment{T}`: Top boundary segment
+- `bottom::Segment{T}`: Bottom boundary segment
+- `right::Segment{T}`: Right boundary segment
+- `left::Segment{T}`: Left boundary segment
+"""
+struct Boundary{T<:Real}
+    top::Segment{T}
+    bottom::Segment{T}
+    right::Segment{T}
+    left::Segment{T}
+end
+
+"""
     Vacuum
     Reflective
     Periodic
 
 Boundary condition types for ray tracing simulations in neutron transport.
 
-These boundary conditions define how rays interact with the domain boundaries during ray tracing
-calculations.
+These boundary conditions define how rays interact with the domain boundaries during ray
+tracing calculations.
 
 ## Boundary Types
 
@@ -31,9 +50,9 @@ end
 
 Specifies boundary conditions for the four sides of a rectangular domain.
 
-This structure defines how rays interact with each boundary of the computational domain during ray
-tracing calculations. Each side can have different boundary conditions to model various physical
-scenarios.
+This structure defines how rays interact with each boundary of the computational domain
+during ray tracing calculations. Each side can have different boundary conditions to model
+various physical scenarios.
 
 ## Type Parameters
 - `T<:BoundaryType`: Type of boundary condition (Vacuum, Reflective, or Periodic)
@@ -50,7 +69,8 @@ scenarios.
 ```julia
 bcs = BoundaryConditions(top=Reflective, bottom=Reflective, right=Reflective, left=Reflective)
 ```
-Useful for symmetric problems where the domain represents a quarter or half of the full geometry.
+Useful for symmetric problems where the domain represents a quarter or half of the full
+geometry.
 
 ### All Vacuum (Open Domain)
 ```julia
@@ -76,11 +96,11 @@ bcs = BoundaryConditions(top=Reflective, bottom=Reflective, right=Periodic, left
 
 See also: [`boundary_condition`](@ref), [`BoundaryType`](@ref)
 """
-struct BoundaryConditions{T<:BoundaryType}
-    top::T
-    bottom::T
-    right::T
-    left::T
+struct BoundaryConditions
+    top::BoundaryType
+    bottom::BoundaryType
+    right::BoundaryType
+    left::BoundaryType
 end
 
 """
@@ -114,16 +134,17 @@ BoundaryConditions(; top=Vacuum, bottom=Vacuum, right=Vacuum, left=Vacuum) =
     BoundaryConditions(top, bottom, right, left)
 
 """
-    boundary_condition(x::Point2D, sides, bcs::BoundaryConditions)
+    boundary_condition(x::Point2D, boundary::Boundary, condition::BoundaryConditions)
 
 Determine the boundary condition at a given point on the domain boundary.
 
-This function identifies which boundary a point lies on and returns the corresponding boundary
-condition. It's used during ray tracing to determine how rays interact with domain boundaries.
+This function identifies which boundary a point lies on and returns the corresponding
+boundary condition. It's used during ray tracing to determine how rays interact with domain
+boundaries.
 
 ## Arguments
 - `x::Point2D`: Point on the domain boundary
-- `sides`: Named tuple containing boundary segments (top, bottom, right, left)
+- `boundary`: Boundary object containing boundary segments (top, bottom, right, left)
 - `bcs::BoundaryConditions`: Boundary conditions for all sides
 
 ## Returns
@@ -138,12 +159,11 @@ condition. It's used during ray tracing to determine how rays interact with doma
 # Define boundary conditions
 bcs = BoundaryConditions(top=Vacuum, bottom=Reflective, right=Periodic, left=Periodic)
 
-# Define domain sides
-sides = (top=Segment(p1, p2), bottom=Segment(p3, p4),
-         right=Segment(p2, p5), left=Segment(p4, p1))
+# Define boundary
+boundary = Boundary(Segment(p1, p2), Segment(p3, p4), Segment(p2, p5), Segment(p4, p1))
 
 # Check boundary condition at a point
-bc = boundary_condition(point, sides, bcs)
+bc = boundary_condition(point, boundary, bcs)
 ```
 
 ## Notes
@@ -152,28 +172,21 @@ bc = boundary_condition(point, sides, bcs)
 - The function checks boundaries in order: top, bottom, right, left
 - Returns the first matching boundary condition
 """
-function boundary_condition(x::Point2D, sides, bcs::BoundaryConditions)
-    if x in sides.top
-        return bcs.top
-    elseif x in sides.bottom
-        return bcs.bottom
-    elseif x in sides.right
-        return bcs.right
-    elseif x in sides.left
-        return bcs.left
-    else
-        throw(ArgumentError("Point $(x) does not lie on any boundary. " *
-                            "Ensure the point is exactly on one of the domain edges."))
+function get_boundary_condition_at(x::Point2D, boundary::Boundary, condition::BoundaryConditions)
+    for field in fieldnames(typeof(boundary))
+        x in getfield(boundary, field) && return getfield(condition, field)
     end
+    throw(ArgumentError("Point $(x) does not lie on any boundary. " *
+                        "Ensure the point is exactly on one of the domain edges."))
 end
 
-# Convenience constructors for common boundary configurations
 """
     reflective_boundaries()
 
 Create boundary conditions with all sides set to reflective.
 
-Useful for symmetric problems where the domain represents a portion of a larger symmetric geometry.
+Useful for symmetric problems where the domain represents a portion of a larger symmetric
+geometry.
 
 ## Returns
 - `BoundaryConditions` with all sides set to `Reflective`
@@ -221,3 +234,42 @@ bcs = periodic_boundaries()
 ```
 """
 periodic_boundaries() = BoundaryConditions(top=Periodic, bottom=Periodic, right=Periodic, left=Periodic)
+
+"""
+    is_reflective(bc::BoundaryType)
+
+Check if a boundary condition is reflective.
+
+## Arguments
+- `bc::BoundaryType`: Boundary condition to check
+
+## Returns
+- `Bool`: True if the boundary condition is reflective, false otherwise
+"""
+is_reflective(bc::BoundaryType) = bc == Reflective
+
+"""
+    is_periodic(bc::BoundaryType)
+
+Check if a boundary condition is periodic.
+
+## Arguments
+- `bc::BoundaryType`: Boundary condition to check
+
+## Returns
+- `Bool`: True if the boundary condition is periodic, false otherwise
+"""
+is_periodic(bc::BoundaryType) = bc == Periodic
+
+"""
+    is_vacuum(bc::BoundaryType)
+
+Check if a boundary condition is vacuum.
+
+## Arguments
+- `bc::BoundaryType`: Boundary condition to check
+
+## Returns
+- `Bool`: True if the boundary condition is vacuum, false otherwise
+"""
+is_vacuum(bc::BoundaryType) = bc == Vacuum

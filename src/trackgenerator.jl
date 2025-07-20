@@ -87,7 +87,6 @@ function TrackGenerator(
 
     azimuthal_quadrature = AzimuthalQuadrature(Val(n_azim), δ)
     n_azim_2 = n_azim_half(azimuthal_quadrature)
-    n_azim_4 = n_azim_quad(azimuthal_quadrature)
 
     n_tracks_x = Vector{Int}(undef, n_azim_2)
     n_tracks_y = Vector{Int}(undef, n_azim_2)
@@ -166,13 +165,12 @@ function trace!(t::TrackGenerator{T}) where {T}
     # once we have computed all the azimuthal angles, compute weights
     init_weights!(azimuthal_quadrature)
 
-    # mesh vertices and side segments
+    # mesh vertices and boundary segments
     p1 = bb_min
     p2 = Point2D(bb_min[1], bb_max[2])
     p3 = bb_max
     p4 = Point2D(bb_max[1], bb_min[2])
-    sides = (top=Segment(p2, p3), bottom=Segment(p4, p1),
-        right=Segment(p3, p4), left=Segment(p1, p2))
+    boundary = Boundary(Segment(p2, p3), Segment(p4, p1), Segment(p3, p4), Segment(p1, p2))
 
     uid = 1
     for i in azimuthal_half_plane(azimuthal_quadrature)
@@ -226,8 +224,8 @@ function trace!(t::TrackGenerator{T}) where {T}
             ABC = general_form(p, q)
             segments = Vector{Segment{T}}(undef, 0)
 
-            BCFwd = boundary_condition(q, sides, bcs)
-            BCBwd = boundary_condition(p, sides, bcs)
+            BCFwd = get_boundary_condition_at(q, boundary, bcs)
+            BCBwd = get_boundary_condition_at(p, boundary, bcs)
 
             # alternative method
             if is_rightward_direction(azimuthal_quadrature, i)
@@ -245,17 +243,17 @@ function trace!(t::TrackGenerator{T}) where {T}
             if j ≤ n_tracks_y[i]
                 DirNextTrackFwd = Forward
             else
-                if BCFwd == Periodic
+                if is_periodic(BCFwd)
                     DirNextTrackFwd = Forward
-                elseif BCFwd == Vacuum || BCFwd == Reflective
+                elseif is_vacuum(BCFwd) || is_reflective(BCFwd)
                     DirNextTrackFwd = Backward
                 end
             end
 
             if j ≤ n_tracks_x[i]
-                if BCBwd == Periodic
+                if is_periodic(BCBwd)
                     DirNextTrackBwd = Backward
-                elseif BCBwd == Vacuum || BCBwd == Reflective
+                elseif is_vacuum(BCBwd) || is_reflective(BCBwd)
                     DirNextTrackBwd = Forward
                 end
             else
@@ -302,14 +300,14 @@ function next_track_fwd(t::TrackGenerator, track::Track)
     if j ≤ n_tracks_y[i]
         if BCFwd == Periodic
             track.next_track_fwd = tracks[i][j+n_tracks_x[i]]
-        elseif BCFwd == Vacuum || BCFwd == Reflective
+        elseif is_vacuum(BCFwd) || is_reflective(BCFwd)
             track.next_track_fwd = tracks[k][j+n_tracks_x[i]]
         end
     else
         # these are the tracks that arrive to the top (superior x-axis)
         if BCFwd == Periodic
             track.next_track_fwd = tracks[i][j-n_tracks_y[i]]
-        elseif BCFwd == Vacuum || BCFwd == Reflective
+        elseif is_vacuum(BCFwd) || is_reflective(BCFwd)
             track.next_track_fwd = tracks[k][n_tracks[i]+n_tracks_y[i]-j+1]
         end
     end
@@ -328,16 +326,16 @@ function next_track_bwd(t::TrackGenerator, track::Track)
 
     # these are the tracks that arrive to the bottom (inferior x-axis)
     if j ≤ n_tracks_x[i]
-        if BCBwd == Periodic
+        if is_periodic(BCBwd)
             track.next_track_bwd = tracks[i][j+n_tracks_y[i]]
-        elseif BCBwd == Vacuum || BCBwd == Reflective
+        elseif is_vacuum(BCBwd) || is_reflective(BCBwd)
             track.next_track_bwd = tracks[k][n_tracks_x[i]-j+1]
         end
         # these are the tracks that arrive to the y-axis
     else
-        if BCBwd == Periodic
+        if is_periodic(BCBwd)
             track.next_track_bwd = tracks[i][j-n_tracks_x[i]]
-        elseif BCBwd == Vacuum || BCBwd == Reflective
+        elseif is_vacuum(BCBwd) || is_reflective(BCBwd)
             track.next_track_bwd = tracks[k][j-n_tracks_x[i]]
         end
     end
@@ -361,12 +359,12 @@ function segmentize!(t::TrackGenerator{T}; k::Int=5, rtol::Real=Base.rtoldefault
         _segmentize_track!(t, track, k, rtol)
     end
 
-    fill_volumes(t, 1)
+    fill_volumes(t)
 
     return t
 end
 
-function fill_volumes(t::TrackGenerator{T}, i) where {T}
+function fill_volumes(t::TrackGenerator{T}) where {T}
     @unpack tracks_by_uid, azimuthal_quadrature, volumes = t
     @unpack δs = azimuthal_quadrature
     n_azim_2 = n_azim_half(azimuthal_quadrature)
