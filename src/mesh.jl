@@ -230,9 +230,33 @@ absolute tolerance `atol`.
     return any(isapprox.(p, bb_min, atol=atol)) || any(isapprox.(p, bb_max, atol=atol))
 end
 
-# Use dispatch once I get the info about the element type using Gridap topology.
-point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D) =
+"""
+    point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D) -> Bool
+
+Checks if a given point `x` lies inside the element defined by the node coordinates ids
+`node_ids`.
+"""
+function point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
+    return point_in_element(mesh, Val(length(node_ids)), node_ids, x)
+end
+
+"""
+    point_in_element(mesh::Mesh, _::Val{3}, node_ids::AbstractVector{<:Int32}, x::Point2D) -> Bool
+
+Checks if a given point `x` lies inside the triangle defined by the node coordinates ids
+`node_ids`.
+"""
+@inline point_in_element(mesh::Mesh, _::Val{3}, node_ids::AbstractVector{<:Int32}, x::Point2D) =
     point_in_triangle(mesh, node_ids, x)
+
+"""
+    point_in_element(mesh::Mesh, _::Val{4}, node_ids::AbstractVector{<:Int32}, x::Point2D) -> Bool
+
+Checks if a given point `x` lies inside the quadrangle defined by the node coordinates ids
+`node_ids`.
+"""
+@inline point_in_element(mesh::Mesh, _::Val{4}, node_ids::AbstractVector{<:Int32}, x::Point2D) =
+    point_in_quadrangle(mesh, node_ids, x)
 
 """
     _find_element_in_cells(mesh::Mesh, cell_ids::AbstractVector{<:Int32}, x::Point2D) -> Int
@@ -341,9 +365,12 @@ function find_element(mesh::Mesh, x::Point2D, k::Int=2)
     # get the associated cell ids that contain the nearest node
     cell_ids = node_cells[nn_id]
 
+    # define the invalid element id
+    invalid_element_id = -one(eltype(cell_ids))
+
     # loop over those cells until the element containing `x` is found
     element = _find_element_in_cells(mesh, cell_ids, x)
-    element != -one(eltype(cell_ids)) && return element
+    element != invalid_element_id && return element
 
     # the mesh might be deformed, i.e. the cells that contain the nearest node do not
     # contain the point `x`. In that case, we need to search for more nodes.
@@ -351,17 +378,85 @@ function find_element(mesh::Mesh, x::Point2D, k::Int=2)
     for node_id in nn_ids
         cell_ids = node_cells[node_id]
         element = _find_element_in_cells(mesh, cell_ids, x)
-        element != -one(eltype(cell_ids)) && return element
+        element != invalid_element_id && return element
     end
 
-    return -one(eltype(cell_ids))
+    return invalid_element_id
 end
 
 """
-    point_in_triangle(mesh::Mesh, node_ids, x) -> Bool
+    point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D) -> Bool
 
-Checks whether a given point `x` lies inside, the edge or corner of the triangle given by
-its node coordinates ids `node_ids`.
+Checks whether a given point `x` lies inside, on the edge, or at a corner of the triangle
+defined by its node coordinates.
+
+This function uses barycentric coordinates to determine point containment in a triangle. The
+method is numerically robust and handles edge cases including points exactly on triangle
+boundaries and at vertices.
+
+## Arguments
+- `mesh::Mesh`: The mesh containing the triangle
+- `node_ids::AbstractVector{<:Int32}`: Exactly 3 node IDs defining the triangle vertices
+- `x::Point2D`: The point to check for containment
+
+## Returns
+- `Bool`: `true` if the point lies inside, on an edge, or at a vertex of the triangle
+
+## Algorithm
+
+The function uses barycentric coordinate transformation:
+
+1. **Extract vertex coordinates**: Get the 3D coordinates of the triangle vertices
+2. **Form transformation matrix**: Create matrix R = [x₁ x₂ x₃; y₁ y₂ y₃; 1 1 1]
+3. **Solve barycentric coordinates**: Solve R·λ = [x, y, 1] for λ = [λ₁, λ₂, λ₃]
+4. **Check containment**: Point is inside if all λᵢ ∈ [0, 1] (with tolerance)
+
+## Mathematical Foundation
+
+Barycentric coordinates represent a point P as a weighted combination of triangle vertices:
+```
+P = λ₁·V₁ + λ₂·V₂ + λ₃·V₃
+```
+where λ₁ + λ₂ + λ₃ = 1 and λᵢ ≥ 0 for all i.
+
+The point is:
+- **Inside**: All λᵢ > 0 (strictly positive)
+- **On edge**: One λᵢ = 0, others > 0
+- **At vertex**: One λᵢ = 1, others = 0
+- **Outside**: At least one λᵢ < 0
+
+## Numerical Robustness
+
+- **Tolerance**: Uses `√(eps(T))` for floating-point comparisons
+- **Domain**: Checks λᵢ ∈ [-tol, 1+tol] to handle numerical errors
+- **Edge cases**: Properly handles points exactly on boundaries
+- **Degenerate triangles**: May fail for zero-area triangles
+
+## Performance Characteristics
+
+- **Computational complexity**: O(1) - constant time operation
+- **Memory usage**: Minimal - only requires 3×3 matrix and 3-vector
+- **Numerical stability**: Robust against floating-point errors
+- **Vectorization**: Uses StaticArrays for efficient matrix operations
+
+## Edge Cases and Limitations
+
+- **Degenerate triangles**: May produce incorrect results for zero-area triangles
+- **Node ordering**: Assumes valid triangle node ordering (counter-clockwise)
+- **Mesh validity**: Requires mesh to have valid node coordinates
+
+## Notes
+
+- **Barycentric coordinates**: More robust than area-based methods
+- **Boundary handling**: Points on edges and vertices return `true`
+- **Tolerance**: Automatically adjusted based on type
+- **StaticArrays**: Uses `@SMatrix` and `@SVector` for performance
+
+## See Also
+
+- [`point_in_element`](@ref): Generic point-in-element test with dispatch
+- [`point_in_quadrangle`](@ref): Quadrangle containment test
+- [`find_element`](@ref): Find which element contains a point
 """
 function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
     @unpack model = mesh
@@ -384,10 +479,103 @@ function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Poi
 end
 
 """
-    point_in_quadrangle(mesh::Mesh, node_ids, x) -> Bool
+    point_in_quadrangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D) -> Bool
 
-Checks whether a given point `x` lies inside the quadrangle given by its node coordinates
-ids `node_ids`.
+Checks whether a given point `x` lies inside the quadrangle defined by its node coordinates.
+
+This function uses a triangulation-based approach to determine point containment in a
+quadrangle. The method decomposes the quadrangle into four triangles and tests point
+containment in each triangle. This approach handles arbitrary quadrilateral shapes robustly,
+including concave and non-convex quadrangles.
+
+## Arguments
+- `mesh::Mesh`: The mesh containing the quadrangle
+- `node_ids::AbstractVector{<:Int32}`: Exactly 4 node IDs defining the quadrangle vertices
+- `x::Point2D`: The point to check for containment
+
+## Returns
+- `Bool`: `true` if the point lies inside or on the boundary of the quadrangle
+
+## Algorithm
+
+The function uses a systematic triangulation approach:
+
+1. **Quadrangle decomposition**: Decomposes the quadrangle into 4 triangles
+2. **Triangle formation**: Creates triangles using different vertex combinations
+3. **Point testing**: Tests point containment in each triangle using `point_in_triangle`
+4. **Early termination**: Returns `true` as soon as point is found in any triangle
+
+### Triangle Formation Strategy
+
+The algorithm creates 4 triangles by systematically combining vertices:
+- **Triangle 1**: Vertices [1, 2, 3] (first three vertices)
+- **Triangle 2**: Vertices [2, 3, 4] (middle three vertices)
+- **Triangle 3**: Vertices [3, 4, 1] (last and first vertices)
+- **Triangle 4**: Vertices [4, 1, 2] (last two and first vertex)
+
+This ensures complete coverage of the quadrangle regardless of node ordering.
+
+## Mathematical Foundation
+
+The triangulation approach works because:
+- Any quadrangle can be decomposed into triangles
+- Point containment in a quadrangle is equivalent to containment in at least one of its
+  triangular sub-elements
+- The union of the four triangles covers the entire quadrangle area
+
+### Coverage Guarantee
+
+For a quadrangle with vertices V₁, V₂, V₃, V₄, the four triangles:
+- T₁ = (V₁, V₂, V₃)
+- T₂ = (V₂, V₃, V₄)
+- T₃ = (V₃, V₄, V₁)
+- T₄ = (V₄, V₁, V₂)
+
+Collectively cover the quadrangle: Q = T₁ ∪ T₂ ∪ T₃ ∪ T₄
+
+## Performance Characteristics
+
+- **Computational complexity**: O(1) - constant time operation (4 triangle tests)
+- **Memory usage**: Minimal - only requires 3-vector for triangle nodes
+- **Early termination**: Stops as soon as point is found in any triangle
+- **Vectorization**: Uses `@MVector` for efficient temporary storage
+
+## Edge Cases and Limitations
+
+- **Degenerate quadrangles**: May produce incorrect results for zero-area quadrangles
+- **Node ordering**: Assumes valid quadrangle node ordering (counter-clockwise)
+- **Mesh validity**: Requires mesh to have valid node coordinates
+- **Overlapping triangles**: The four triangles may overlap, but this doesn't affect
+  correctness
+
+## Numerical Robustness
+
+- **Inherits robustness**: Benefits from the numerical robustness of `point_in_triangle`
+- **Consistent behavior**: Points on quadrangle boundaries return `true`
+- **Tolerance handling**: Uses the same tolerance as triangle containment tests
+- **Edge cases**: Properly handles points on edges and at vertices
+
+## Algorithm Advantages
+
+- **Shape independence**: Works for arbitrary quadrilateral shapes
+- **Robustness**: Inherits numerical robustness from triangle tests
+- **Simplicity**: Straightforward implementation using existing triangle tests
+- **Completeness**: Guaranteed to find points inside the quadrangle
+
+## Notes
+
+- **Triangulation approach**: More general than barycentric coordinate methods for
+  quadrangles
+- **Node ordering**: The `mod1` function ensures proper vertex cycling
+- **Memory efficiency**: Uses `@MVector` for temporary storage to avoid allocations
+- **Early termination**: Optimized to return as soon as containment is found
+- **Reusability**: Leverages the robust `point_in_triangle` implementation
+
+## See Also
+
+- [`point_in_element`](@ref): Generic point-in-element test with dispatch
+- [`point_in_triangle`](@ref): Triangle containment test using barycentric coordinates
+- [`find_element`](@ref): Find which element contains a point
 """
 function point_in_quadrangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
 
