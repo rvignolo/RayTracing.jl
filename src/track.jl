@@ -122,7 +122,7 @@ function _segmentize_track!(t, track::Track, k::Int, rtol::Real) # t::TrackGener
         element = find_element(mesh, xp)
 
         # we might be at the boundary of the mesh
-        if inboundary(mesh, xp, tiny_step)
+        if on_boundary(mesh, xp, tiny_step)
             if isempty(segments)
                 # if we just started to segmentize, move a tiny step forward
                 xp = advance_step(xp, tiny_step, ϕ)
