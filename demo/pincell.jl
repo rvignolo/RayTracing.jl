@@ -1,5 +1,3 @@
-pushfirst!(LOAD_PATH, normpath(joinpath(@__DIR__, "..")))
-
 using Gridap
 using Plots
 using RayTracing
@@ -7,6 +5,8 @@ using RayTracing
 const OUTDIR = @__DIR__
 const IMAGE_SIZE = (900, 900)
 const GIF_SIZE = (640, 640)
+const GIF_FRAMES = 96
+const GIF_FPS = 8
 const MATERIAL_COLORS = ["#E76F51", "#F2C14E", "#2A9D8F"]
 
 gr()
@@ -78,31 +78,27 @@ function plot_material_mesh(mesh; fillalpha=0.9, edgealpha=0.55, size=IMAGE_SIZE
     return polish!(plt, mesh; size=size)
 end
 
-function plot_mesh_outline(mesh; size=GIF_SIZE)
-    plt = plot(
-        mesh;
-        linecolor="#D1D7DC",
-        linealpha=0.58,
-        linewidth=0.18,
-    )
+function plot_material_regions(mesh; size=GIF_SIZE)
+    plt = plot_material_mesh(mesh; fillalpha=0.30, edgealpha=0.0, size=size)
     return polish!(plt, mesh; size=size)
 end
 
-function plot_domain(mesh; size=GIF_SIZE)
-    xmin, xmax, ymin, ymax = mesh_limits(mesh)
-    plt = plot()
+function plot_material_context(mesh; size=GIF_SIZE)
+    plt = plot_material_mesh(mesh; fillalpha=0.30, edgealpha=0.0, size=size)
     plot!(
         plt,
-        Shape([xmin, xmax, xmax, xmin], [ymin, ymin, ymax, ymax]);
-        fillcolor=:white,
-        fillalpha=1.0,
-        linecolor="#C5CDD3",
-        linewidth=1.4,
+        mesh;
+        linecolor="#98A2AE",
+        linealpha=0.30,
+        linewidth=0.16,
     )
     return polish!(plt, mesh; size=size)
 end
 
 function save_static_assets(tg)
+    geometry_plot = plot_material_regions(tg.mesh)
+    savefig(geometry_plot, joinpath(OUTDIR, "pincell-geometry.png"))
+
     mesh_plot = plot_material_mesh(tg.mesh)
     savefig(mesh_plot, joinpath(OUTDIR, "pincell-msh.png"))
 
@@ -163,42 +159,46 @@ function cyclic_path(initial_track, initial_direction)
     return xs, ys
 end
 
-function save_cycle_animation(tg, output; with_mesh)
+function plot_ray_tail!(plt, xs, ys, first_idx, last_idx)
+    first_idx == last_idx && return plt
+
+    plot!(
+        plt,
+        xs[first_idx:last_idx],
+        ys[first_idx:last_idx];
+        seriescolor=:white,
+        linecolor=:white,
+        linewidth=2.6,
+    )
+
+    return plt
+end
+
+function save_cycle_animation(tg, output)
     xs, ys = cyclic_path(tg.tracks[2][1], RayTracing.Forward)
-    nframes = 72
-    tail = min(280, length(xs))
-    base_plot = with_mesh ? plot_mesh_outline : plot_domain
+    nframes = GIF_FRAMES
+    tail = min(260, length(xs))
+    base = plot_material_context(tg.mesh)
 
     animation = @animate for frame in 1:nframes
         idx = max(2, round(Int, 1 + (length(xs) - 1) * (frame - 1) / (nframes - 1)))
-        first_idx = max(1, idx - tail)
+        tail_idx = max(1, idx - tail)
 
-        plt = base_plot(tg.mesh)
-        full_path_alpha = with_mesh ? 0.14 : 0.45
-        full_path_width = with_mesh ? 0.40 : 0.55
-        plot!(plt, xs, ys; linecolor="#AAB3BB", linealpha=full_path_alpha, linewidth=full_path_width)
-        plot!(
-            plt,
-            xs[first_idx:idx],
-            ys[first_idx:idx];
-            linecolor="#111827",
-            linealpha=0.95,
-            linewidth=2.1,
-        )
+        plt = deepcopy(base)
+        plot_ray_tail!(plt, xs, ys, tail_idx, idx)
         scatter!(
             plt,
             [xs[idx]],
             [ys[idx]];
-            markercolor="#E76F51",
-            markerstrokecolor=:white,
-            markerstrokewidth=1.2,
+            markercolor=:white,
+            markerstrokecolor="#334155",
+            markerstrokewidth=0.8,
             markersize=4.0,
         )
     end
 
-    gif(animation, joinpath(OUTDIR, output); fps=24)
+    gif(animation, joinpath(OUTDIR, output); fps=GIF_FPS)
 end
 
 save_static_assets(tg)
-save_cycle_animation(tg, "cyclic_track_no_mesh.gif"; with_mesh=false)
-save_cycle_animation(tg, "cyclic_track_with_mesh.gif"; with_mesh=true)
+save_cycle_animation(tg, "cyclic_track_with_mesh.gif")

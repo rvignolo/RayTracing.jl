@@ -8,8 +8,8 @@ computes ray-tracing volumes for neutron transport workflows such as
 [NeutronTransport.jl](https://github.com/rvignolo/NeutronTransport.jl).
 
 <p align="center">
-  <img width="46%" src="demo/cyclic_track_no_mesh.gif" alt="Cyclic ray tracing without mesh">
-  <img width="46%" src="demo/cyclic_track_with_mesh.gif" alt="Cyclic ray tracing over a mesh">
+  <img width="46%" src="demo/pincell-geometry.png" alt="Pin-cell material geometry">
+  <img width="46%" src="demo/cyclic_track_with_mesh.gif" alt="Cyclic ray tracing over the pin-cell mesh">
 </p>
 
 ## Features

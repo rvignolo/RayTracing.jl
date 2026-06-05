@@ -1,5 +1,3 @@
-pushfirst!(LOAD_PATH, normpath(joinpath(@__DIR__, "..")))
-
 using Gridap
 using GLMakie
 using RayTracing
