@@ -120,6 +120,19 @@ Build local docs with:
 julia --project=docs docs/make.jl
 ```
 
+## Benchmarks
+
+The benchmark suite uses BenchmarkTools and lives in `benchmark/`:
+
+```bash
+julia --project=benchmark benchmark/runbenchmarks.jl --quick
+julia --project=benchmark benchmark/runbenchmarks.jl
+julia --project=benchmark benchmark/runbenchmarks.jl --output benchmark/results.json
+```
+
+Benchmark definitions are grouped in `benchmark/benchmarks.jl` so they can also be loaded by
+PkgBenchmark-style workflows.
+
 ## License
 
 RayTracing.jl is distributed under the MIT License. See [LICENSE](LICENSE).

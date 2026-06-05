@@ -1,0 +1,13 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Gridap = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
+RayTracing = "3007c720-8091-40db-9339-e09e4eb4c7ea"
+
+[compat]
+BenchmarkTools = "1"
+Gridap = "0.19.11"
+RayTracing = "0.2"
+julia = "1.10"
+
+[sources]
+RayTracing = {path = ".."}
