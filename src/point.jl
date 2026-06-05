@@ -332,7 +332,7 @@ p_rotated = rotate_around(p, center, π/2)  # Point2D(1.0, 1.0)
 end
 
 """
-    is_approx(p1::Point2D, p2::Point2D; atol::Real=0, rtol::Real=Base.rtoldefault) -> Bool
+    is_approx(p1::Point2D, p2::Point2D; atol::Real=0, rtol::Real=Base.rtoldefault(...)) -> Bool
 
 Checks if two points are approximately equal within specified tolerances.
 
@@ -340,7 +340,8 @@ Checks if two points are approximately equal within specified tolerances.
 - `p1::Point2D`: First point
 - `p2::Point2D`: Second point
 - `atol::Real=0`: Absolute tolerance
-- `rtol::Real=Base.rtoldefault`: Relative tolerance
+- `rtol`: Relative tolerance. By default, uses the same coordinate-type default as
+  `Base.isapprox`.
 
 ## Returns
 - `Bool`: `true` if points are approximately equal
@@ -359,7 +360,12 @@ is_close = is_approx(p1, p2)  # true
 - Useful for numerical comparisons in geometric algorithms
 - Handles floating-point precision issues
 """
-@inline function is_approx(p1::Point2D, p2::Point2D; atol::Real=0, rtol::Real=Base.rtoldefault)
+@inline function is_approx(
+    p1::Point2D,
+    p2::Point2D;
+    atol::Real=0,
+    rtol::Real=Base.rtoldefault(p1.x, p2.x, atol)
+)
     return isapprox(p1.x, p2.x, atol=atol, rtol=rtol) &&
            isapprox(p1.y, p2.y, atol=atol, rtol=rtol)
 end

@@ -28,6 +28,7 @@ include("mesh.jl")
 include("intersection.jl")
 include("azimuthal_quad.jl")
 include("trackgenerator.jl")
+include("plot_recipes.jl")
 
 export BoundaryConditions
 export Vacuum, Reflective, Periodic

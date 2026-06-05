@@ -146,7 +146,7 @@ function intersections(
 
     @unpack model, cell_nodes = mesh
     node_coordinates = get_node_coordinates(get_grid(model))
-    cell_node_ids = cell_nodes[cell_id]
+    cell_node_ids = ordered_node_ids(mesh, cell_nodes[cell_id])
 
     length(cell_node_ids) >= 3 || throw(ArgumentError("Element must have at least 3 nodes"))
 

@@ -188,13 +188,15 @@ nodes in each spatial dimension.
 function bounding_box(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
     nodes = get_node_coordinates(grid)
 
-    xmin = MVector{Dp,Tp}(zeros(Tp, Dp))
-    xmax = MVector{Dp,Tp}(zeros(Tp, Dp))
+    xmin = MVector{Dp,Tp}(Tuple(first(nodes)))
+    xmax = MVector{Dp,Tp}(Tuple(first(nodes)))
 
-    for i in 1:Dp
-        xs = getindex.(nodes, i)
-        xmin[i] = min(xs...)
-        xmax[i] = max(xs...)
+    for node in nodes
+        for i in 1:Dp
+            xi = node[i]
+            xmin[i] = min(xmin[i], xi)
+            xmax[i] = max(xmax[i], xi)
+        end
     end
 
     bb_min = convert(Point2D{Tp}, xmin)
@@ -227,7 +229,11 @@ absolute tolerance `atol`.
 @inline function on_boundary(mesh::Mesh, p::Point2D, atol::Real=zero(eltype(p)))
     atol < zero(atol) && throw(ArgumentError("Tolerance must be non-negative, got $atol"))
     @unpack bb_min, bb_max = mesh
-    return any(isapprox.(p, bb_min, atol=atol)) || any(isapprox.(p, bb_max, atol=atol))
+    x_in = bb_min[1] - atol <= p[1] <= bb_max[1] + atol
+    y_in = bb_min[2] - atol <= p[2] <= bb_max[2] + atol
+    x_on = isapprox(p[1], bb_min[1]; atol=atol) || isapprox(p[1], bb_max[1]; atol=atol)
+    y_on = isapprox(p[2], bb_min[2]; atol=atol) || isapprox(p[2], bb_max[2]; atol=atol)
+    return (x_on && y_in) || (y_on && x_in)
 end
 
 """
@@ -238,6 +244,30 @@ Checks if a given point `x` lies inside the element defined by the node coordina
 """
 function point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
     return point_in_element(mesh, Val(length(node_ids)), node_ids, x)
+end
+
+function ordered_node_ids(mesh::Mesh, node_ids::AbstractVector{<:Integer})
+    length(node_ids) <= 3 && return node_ids
+
+    node_coordinates = get_node_coordinates(get_grid(mesh.model))
+    T = eltype(first(node_coordinates))
+    cx = zero(T)
+    cy = zero(T)
+
+    for node_id in node_ids
+        p = node_coordinates[node_id]
+        cx += p[1]
+        cy += p[2]
+    end
+    cx /= length(node_ids)
+    cy /= length(node_ids)
+
+    node_order = sortperm(
+        collect(eachindex(node_ids));
+        by=i -> atan(node_coordinates[node_ids[i]][2] - cy, node_coordinates[node_ids[i]][1] - cx)
+    )
+
+    return node_ids[node_order]
 end
 
 """
@@ -580,13 +610,14 @@ Collectively cover the quadrangle: Q = T₁ ∪ T₂ ∪ T₃ ∪ T₄
 function point_in_quadrangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
 
     # triangle node ids
-    t_node_ids = @MVector zeros(3)
+    t_node_ids = MVector{3,eltype(node_ids)}(undef)
+    ordered_ids = ordered_node_ids(mesh, node_ids)
 
     # look on 4 triangles because we do not know the order of the nodes
     for i in 1:4
         for j in 1:3
             k = mod1(i + j - 1, 4) # k = (i + j - 2) % 4 + 1, k = mod(i + j - 1, 1:4)
-            t_node_ids[j] = node_ids[k]
+            t_node_ids[j] = ordered_ids[k]
         end
         if point_in_triangle(mesh, t_node_ids, x)
             return true

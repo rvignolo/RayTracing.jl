@@ -1,4 +1,3 @@
-using Plots
 using Gridap
 using GLMakie
 using RayTracing
@@ -73,7 +72,7 @@ function update_ray!(trajectory_obs, segment, direction)
 end
 
 # plots a cyclic trajectory with enhanced colors, output can be gif or even mp4
-function trajectory(ax, initial_track, initial_direction, output)
+function trajectory(fig, ax, initial_track, initial_direction, output)
 
     # initialize track and direction
     track = initial_track
@@ -91,7 +90,7 @@ function trajectory(ax, initial_track, initial_direction, output)
         color=to_color(:black),
         linestyle=:solid)
 
-    record(fig, output) do io
+    record(fig, output, framerate=60) do io
 
         # Only update observable every N segments, for performance reasons
         update_counter = 0
@@ -179,7 +178,7 @@ draw_lightweight_mesh!(ax, tg.mesh)
 
 # Plot a single track, purposefully selected to look nice
 initial_track = tg.tracks[2][1]
-trajectory(ax, initial_track, RayTracing.Forward, "cyclic_track_with_mesh.gif")
+trajectory(fig, ax, initial_track, RayTracing.Forward, joinpath(@__DIR__, "cyclic_track_with_mesh.gif"))
 
 # This also works and would plot all tracks simultaneously, but it has limited performance
 # for (i, azimuthal_tracks) in enumerate(tg.tracks)
