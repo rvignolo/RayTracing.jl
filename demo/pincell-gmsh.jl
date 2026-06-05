@@ -1,3 +1,4 @@
+using Gridap
 using GridapGmsh
 using GridapGmsh: gmsh, GmshDiscreteModel
 
@@ -76,16 +77,16 @@ factory.synchronize()
 
 gmsh.model.mesh.generate(2)
 
-gmsh.write("pincell.msh")
+mshfile = joinpath(@__DIR__, "pincell.msh")
+jsonfile = joinpath(@__DIR__, "pincell.json")
+gmsh.write(mshfile)
 
 if !("-nopopup" in ARGS)
     gmsh.fltk.run()
 end
 
-gmsh.finalize
+gmsh.finalize()
 
 # move to json file format
-using GridapGmsh: GmshDiscreteModel
-mshfile = joinpath(@__DIR__,"pincell.msh")
 model = GmshDiscreteModel(mshfile; renumber=true)
-Gridap.Io.to_json_file(model, "pincell.json")
+Gridap.Io.to_json_file(model, jsonfile)
