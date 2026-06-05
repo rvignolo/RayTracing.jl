@@ -5,6 +5,34 @@ using Test
 jsonfile = joinpath(@__DIR__, "../demo/pincell.json")
 model = DiscreteModelFromFile(jsonfile)
 
+@testset "Geometry utilities" begin
+    point = RayTracing.Point2D(1.0, 2.0)
+    @test RayTracing.is_approx(point, point)
+
+    shifted_model = simplexify(CartesianDiscreteModel((-3.0, -2.0, -4.0, -1.0), (1, 1)))
+    shifted_mesh = RayTracing.Mesh(shifted_model)
+
+    @test shifted_mesh.bb_min == RayTracing.Point2D(-3.0, -4.0)
+    @test shifted_mesh.bb_max == RayTracing.Point2D(-2.0, -1.0)
+    @test RayTracing.on_boundary(shifted_mesh, RayTracing.Point2D(-3.0, -2.0))
+    @test !RayTracing.on_boundary(shifted_mesh, RayTracing.Point2D(-4.0, -2.0))
+    @test !RayTracing.on_boundary(shifted_mesh, RayTracing.Point2D(-2.5, -5.0))
+
+    cartesian_model = CartesianDiscreteModel((-1.0, 1.0, -1.0, 1.0), (1, 1))
+    quad_model = Gridap.Geometry.UnstructuredDiscreteModel(cartesian_model)
+    quad_mesh = RayTracing.Mesh(quad_model)
+    quad_node_ids = quad_mesh.cell_nodes[1]
+
+    @test RayTracing.point_in_element(quad_mesh, quad_node_ids, RayTracing.Point2D(0.0, 0.0))
+    @test !RayTracing.point_in_element(quad_mesh, quad_node_ids, RayTracing.Point2D(2.0, 0.0))
+    @test RayTracing.element_volume(quad_mesh, quad_node_ids) ≈ 4.0
+
+    tg = TrackGenerator(quad_model, 4, 0.7; bcs=reflective_boundaries(), volume_correction=true)
+    trace!(tg)
+    segmentize!(tg)
+    @test tg.volumes ≈ [4.0]
+end
+
 @testset "Main tests" begin
 
     tg = TrackGenerator(model, 8, 0.02)

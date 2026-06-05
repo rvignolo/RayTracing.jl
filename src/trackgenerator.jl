@@ -365,7 +365,7 @@ function segmentize!(t::TrackGenerator{T}; k::Int=5, rtol::Real=Base.rtoldefault
 end
 
 function fill_volumes(t::TrackGenerator{T}) where {T}
-    @unpack tracks_by_uid, azimuthal_quadrature, volumes = t
+    @unpack mesh, tracks_by_uid, azimuthal_quadrature, volumes, volume_correction = t
     @unpack δs = azimuthal_quadrature
     n_azim_2 = n_azim_half(azimuthal_quadrature)
 
@@ -381,15 +381,11 @@ function fill_volumes(t::TrackGenerator{T}) where {T}
 
     volumes ./= n_azim_2
 
-    #### TODO: correct volumes by changing segment lengths #####
-    @unpack mesh = t
-    @unpack model, cell_nodes = mesh
-    ncells = num_cells(model)
-    volumes2 = Vector{T}(undef, ncells)
-    fill!(volumes2, zero(T))
-    for i in 1:ncells
-        node_ids = cell_nodes[i]
-        volumes2[i] = element_volume(mesh, node_ids)
+    if volume_correction
+        @unpack cell_nodes = mesh
+        for i in eachindex(volumes)
+            volumes[i] = element_volume(mesh, cell_nodes[i])
+        end
     end
 
     return nothing
@@ -398,10 +394,15 @@ end
 function element_volume(mesh, node_ids)
     @unpack model = mesh
     node_coordinates = get_node_coordinates(get_grid(model))
+    ordered_ids = ordered_node_ids(mesh, node_ids)
 
-    x1 = node_coordinates[node_ids[1]]
-    x2 = node_coordinates[node_ids[2]]
-    x3 = node_coordinates[node_ids[3]]
+    area = zero(eltype(first(node_coordinates)))
+    for i in eachindex(ordered_ids)
+        j = i == lastindex(ordered_ids) ? firstindex(ordered_ids) : i + 1
+        p = node_coordinates[ordered_ids[i]]
+        q = node_coordinates[ordered_ids[j]]
+        area += p[1] * q[2] - q[1] * p[2]
+    end
 
-    return 1 / 2 * abs((x2 - x1) × (x3 - x1))
+    return abs(area) / 2
 end
