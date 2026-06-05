@@ -76,12 +76,42 @@ mutable struct Track{BCFwd,BCBwd,DFwd,DBwd,T<:Real}
     end
 end
 
+"""
+    universal_id(track::Track) -> Int
+
+Return the globally unique track identifier assigned by [`trace!`](@ref).
+"""
 universal_id(track::Track) = track.uid
+
 azim_idx(track::Track) = track.azim_idx
 track_idx(track::Track) = track.track_idx
+
+"""
+    bc_fwd(track::Track) -> BoundaryType
+
+Return the boundary condition encountered when traversing `track` from `p` to `q`.
+"""
 bc_fwd(::Track{BCFwd}) where {BCFwd} = BCFwd
+
+"""
+    bc_bwd(track::Track) -> BoundaryType
+
+Return the boundary condition encountered when traversing `track` from `q` to `p`.
+"""
 bc_bwd(::Track{BCFwd,BCBwd}) where {BCFwd,BCBwd} = BCBwd
+
+"""
+    dir_next_track_fwd(track::Track) -> DirectionType
+
+Return the direction used on `track.next_track_fwd` after a forward boundary crossing.
+"""
 dir_next_track_fwd(::Track{BCFwd,BCBwd,DFwd}) where {BCFwd,BCBwd,DFwd} = DFwd
+
+"""
+    dir_next_track_bwd(track::Track) -> DirectionType
+
+Return the direction used on `track.next_track_bwd` after a backward boundary crossing.
+"""
 dir_next_track_bwd(::Track{BCFwd,BCBwd,DFwd,DBwd}) where {BCFwd,BCBwd,DFwd,DBwd} = DBwd
 
 function show(io::IO, track::Track)

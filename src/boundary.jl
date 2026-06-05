@@ -94,7 +94,7 @@ bcs = BoundaryConditions(top=Reflective, bottom=Reflective, right=Periodic, left
 - **Vacuum boundaries** model realistic scenarios where neutrons can escape
 - All sides can have different conditions to model complex geometries
 
-See also: [`boundary_condition`](@ref), [`BoundaryType`](@ref)
+See also: [`get_boundary_condition_at`](@ref), [`BoundaryType`](@ref)
 """
 struct BoundaryConditions
     top::BoundaryType
@@ -134,7 +134,7 @@ BoundaryConditions(; top=Vacuum, bottom=Vacuum, right=Vacuum, left=Vacuum) =
     BoundaryConditions(top, bottom, right, left)
 
 """
-    boundary_condition(x::Point2D, boundary::Boundary, condition::BoundaryConditions)
+    get_boundary_condition_at(x::Point2D, boundary::Boundary, condition::BoundaryConditions)
 
 Determine the boundary condition at a given point on the domain boundary.
 
@@ -163,7 +163,7 @@ bcs = BoundaryConditions(top=Vacuum, bottom=Reflective, right=Periodic, left=Per
 boundary = Boundary(Segment(p1, p2), Segment(p3, p4), Segment(p2, p5), Segment(p4, p1))
 
 # Check boundary condition at a point
-bc = boundary_condition(point, boundary, bcs)
+bc = get_boundary_condition_at(point, boundary, bcs)
 ```
 
 ## Notes
