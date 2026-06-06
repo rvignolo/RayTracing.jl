@@ -152,21 +152,21 @@ function intersections(
 
     intersection_points = MVector{MAX_INTERSECTIONS,Point2D{T}}(undef)
 
-    # Based on the number of intersections, we can determine the type of intersection
+    # The number of intersections determines how the element crossing should be handled.
     num_intersections = 0
 
     for edge_idx in eachindex(cell_node_ids)
 
         next_edge_idx = edge_idx == lastindex(cell_node_ids) ? 1 : edge_idx + 1
 
-        # Get node coordinates and cast them to Point2D
+        # Get node coordinates and cast them to Point2D.
         p1 = convert(Point2D{T}, node_coordinates[cell_node_ids[edge_idx]])
         p2 = convert(Point2D{T}, node_coordinates[cell_node_ids[next_edge_idx]])
 
-        # Compute general form equation for the selected element face
+        # Compute the general-form equation for the selected element edge.
         ABC = general_form(p1, p2)
 
-        # Compute intersections between track and element face
+        # Compute the intersection between the track and the element edge.
         parallel, x_int = intersection(track.ABC, ABC)
 
         if parallel
@@ -180,7 +180,7 @@ function intersections(
             continue
 
         else
-            # Otherwise, this is a valid intersection
+            # Otherwise, this is a valid intersection.
             num_intersections += 1
             intersection_points[num_intersections] = x_int
         end
@@ -188,8 +188,7 @@ function intersections(
 
     if num_intersections in (MAX_INTERSECTIONS - 1, MAX_INTERSECTIONS)
 
-        # There are intersections at the vertices, we need to find the two points that are
-        # the farthest apart.
+        # Vertex intersections can create extra points; keep the farthest pair.
         ℓ = zero(T)
         p = q = u = v = Point2D{T}(0, 0)
         for (i, j) in combinations(1:num_intersections, 2)
@@ -209,19 +208,17 @@ function intersections(
         p, q = intersection_points
 
         if isapprox(p, q)
-            # We are on vertex, return the point itself and the parent function will move
-            # a tiny step forward
+            # The track hits a vertex; return the point itself so the caller can step forward.
             return p, q
         else
             return order_intersection_points(track, p, q)
         end
 
     elseif iszero(num_intersections) || isone(num_intersections)
-        # The parent function needs to handle this case, probably by moving a tiny step
-        # forward
+        # The caller handles this by moving a tiny step forward.
         return Point2D{T}(0, 0), Point2D{T}(0, 0)
     else
-        # This should never happen with a convex polygon, but handle gracefully
+        # This should never happen with a convex polygon, but handle it defensively.
         @warn "Unexpected number of intersections: $num_intersections"
         return Point2D{T}(0, 0), Point2D{T}(0, 0)
     end

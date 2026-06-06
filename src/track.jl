@@ -121,26 +121,25 @@ function show(io::IO, track::Track)
     println(io, "  Entry point: ", p)
     println(io, "  Exit point: ", q)
     println(io, "  Length: ", ℓ)
-    println(io, "  # of segments: ", length(segments)) # if it is zero, run segmentize!
+    println(io, "  # of segments: ", length(segments)) # Run segmentize! if this is zero.
     println(io, "  Boundary fwd: ", bc_fwd(track))
     print(io, "  Boundary bwd: ", bc_bwd(track))
-    # avoid printing circular references (since it is a cyclic ray tracing...)
+    # Avoid printing circular references from cyclic ray tracing.
     # println(io, "  Next track fwd: ", next_track_fwd)
     # print(io,   "  Next track fwd: ", next_track_bwd)
 end
 
-# since we are in active development of the package and there might be unconsidered cases in
-# the segmentation of tracks, let's have this maximum number of iterations.
+# Keep a hard iteration cap while track segmentation edge cases are still being refined.
 const MAX_ITER = 10_000
 
-function _segmentize_track!(t, track::Track, k::Int, rtol::Real) # t::TrackGenerator
+function _segmentize_track!(t, track::Track, k::Int, rtol::Real) # `t` is a TrackGenerator.
     @unpack mesh, tiny_step = t
     @unpack ϕ, segments = track
 
-    # since we are going to compute them, empty!
+    # Clear any existing segments before recomputing them.
     empty!(segments)
 
-    # move a tiny step in ϕ direction to get inside the mesh
+    # Move a tiny step along ϕ to enter the mesh interior.
     xp = advance_step(track.p, tiny_step, ϕ)
 
     i = 0
@@ -148,23 +147,23 @@ function _segmentize_track!(t, track::Track, k::Int, rtol::Real) # t::TrackGener
     prev_element = -1
     while i < MAX_ITER
 
-        # find the element or cell where `xp` lies
+        # Find the element containing `xp`.
         element = find_element(mesh, xp)
 
-        # we might be at the boundary of the mesh
+        # `xp` may lie on the mesh boundary.
         if on_boundary(mesh, xp, tiny_step)
             if isempty(segments)
-                # if we just started to segmentize, move a tiny step forward
+                # If segmentation just started, move a tiny step forward.
                 xp = advance_step(xp, tiny_step, ϕ)
                 continue
             else
-                # or we just finished, so leave
+                # Otherwise, segmentation has reached the boundary and is done.
                 break
             end
         end
 
-        # if we are inside the domain and `find_element` did not return an element, we might
-        # be dealing with a deformed mesh, so we might need to increase the knn search.
+        # If `find_element` fails inside the domain, a deformed mesh may require a wider
+        # nearest-neighbor search.
         if isequal(element, -1)
             element = find_element(mesh, xp, k)
             if isequal(element, -1)
@@ -173,16 +172,16 @@ function _segmentize_track!(t, track::Track, k::Int, rtol::Real) # t::TrackGener
             end
         end
 
-        # move a step if the new element is the same as the previous one
+        # Step forward if the new element matches the previous one.
         if isequal(prev_element, element)
             xp = advance_step(xp, tiny_step, ϕ)
             continue
         end
 
-        # compute intersections between track and the element
+        # Compute intersections between the track and the element.
         p, q = intersections(mesh, element, track)
 
-        # we might be in a vertex, so we just continue
+        # A vertex hit can produce a zero-length segment; skip it and move forward.
         if isapprox(p, q)
             xp = advance_step(xp, tiny_step, ϕ)
             continue
@@ -191,11 +190,11 @@ function _segmentize_track!(t, track::Track, k::Int, rtol::Real) # t::TrackGener
         segment = Segment(p, q, element)
         push!(segments, segment)
 
-        # update new starting point and previous element
+        # Update the next starting point and previous element.
         xp = advance_step(q, tiny_step, ϕ)
         prev_element = element
 
-        i += 1 # just for safety
+        i += 1 # Safety counter.
     end
 
     if !isapprox(track.ℓ, sum(ℓ.(track.segments)); rtol=rtol)

@@ -21,10 +21,10 @@ iterative transport sweeps.
 
 ## Usage
 ```julia
-# Create track generator
+# Create a track generator.
 tg = TrackGenerator(model, 16, 0.08, bcs=BoundaryConditions(top=Reflective, ...))
 
-# Generate tracks and segments
+# Generate tracks and segments.
 trace!(tg)
 segmentize!(tg)
 ```
@@ -71,11 +71,10 @@ origins_in_y(n_tracks_x, i, j) = !origins_in_x(n_tracks_x, i, j)
         tiny_step::T=1e-8, volume_correction=false
     ) where {T<:Real}
 
-Initialize a [`TrackGenerator`](@ref) using an [`UnstructuredDiscreteModel`](@ref) which holds mesh
-related information, the number of azimuthal angles `n_azim` and the azimuthal spacing `δ`. The
-optional attributes are `tiny_step`, which is used in the track's segmentation routine, and
-`volume_correction`, which allows for cell volume correction since the ray tracing algorithm yields
-to approximate volumes.
+Initialize a [`TrackGenerator`](@ref) using an [`UnstructuredDiscreteModel`](@ref), the number
+of azimuthal angles `n_azim`, and the azimuthal spacing `δ`. The optional attributes are
+`tiny_step`, which is used in track segmentation, and `volume_correction`, which corrects cell
+volumes because ray tracing produces approximate volumes.
 """
 function TrackGenerator(
     model::UnstructuredDiscreteModel, n_azim::Int, δ::T;
@@ -99,7 +98,7 @@ function TrackGenerator(
         n_tracks_y[i] = floor(Δy / δ * abs(cos(φ))) + 1
         n_tracks[i] = n_tracks_x[i] + n_tracks_y[i]
 
-        # suplementary angles:
+        # Supplementary angles:
         j = supplementary_azimuthal_idx(azimuthal_quadrature, i)
         n_tracks_x[j] = n_tracks_x[i]
         n_tracks_y[j] = n_tracks_y[i]
@@ -138,7 +137,7 @@ function trace!(t::TrackGenerator{T}) where {T}
 
     n_azim_2 = n_azim_half(azimuthal_quadrature)
 
-    # effective azimuthal spacings, used for some computations but not stored
+    # Effective azimuthal spacings used for intermediate computations.
     δx = Vector{T}(undef, n_azim_2)
     δy = Vector{T}(undef, n_azim_2)
 
@@ -146,15 +145,15 @@ function trace!(t::TrackGenerator{T}) where {T}
 
     for i in azimuthal_quadrant_1(azimuthal_quadrature)
 
-        # effective azimuthal angle
+        # Effective azimuthal angle.
         ϕ = ϕs[i] = atan((Δy * n_tracks_x[i]) / (Δx * n_tracks_y[i]))
 
-        # effective azimuthal spacings
+        # Effective azimuthal spacings.
         δx[i] = Δx / n_tracks_x[i]
         δy[i] = Δy / n_tracks_y[i]
         δs[i] = δx[i] * sin(ϕ)
 
-        # suplementary angles:
+        # Supplementary angles:
         j = supplementary_azimuthal_idx(azimuthal_quadrature, i)
         ϕs[j] = π - ϕ
         δx[j] = δx[i]
@@ -162,10 +161,10 @@ function trace!(t::TrackGenerator{T}) where {T}
         δs[j] = δs[i]
     end
 
-    # once we have computed all the azimuthal angles, compute weights
+    # Compute weights after all azimuthal angles are available.
     init_weights!(azimuthal_quadrature)
 
-    # mesh vertices and boundary segments
+    # Mesh vertices and boundary segments.
     p1 = bb_min
     p2 = Point2D(bb_min[1], bb_max[2])
     p3 = bb_max
@@ -175,10 +174,10 @@ function trace!(t::TrackGenerator{T}) where {T}
     uid = 1
     for i in azimuthal_half_plane(azimuthal_quadrature)
 
-        # get azimuthal angle
+        # Get the azimuthal angle.
         ϕ = ϕs[i]
 
-        # for all tracks in a given azimuthal direction `i`
+        # Iterate over all tracks in azimuthal direction `i`.
         for j in 1:n_tracks[i]
 
             if origins_in_x(n_tracks_x, i, j)
@@ -195,19 +194,19 @@ function trace!(t::TrackGenerator{T}) where {T}
                 end
             end
 
-            # it can exit at y = Δy regardless if it points to the right or left
+            # The track can exit at y = Δy whether it points right or left.
             m = tan(ϕ)
             q = Point2D(p[1] - (p[2] - Δy) / m, Δy)
 
-            # keep going if `q` is not an exit point
+            # Continue searching if `q` is not a valid exit point.
             if !(0 ≤ q[1] ≤ Δx)
 
-                # it can exit at x = Δx if it points to the right
+                # A rightward track can exit at x = Δx.
                 if is_rightward_direction(azimuthal_quadrature, i)
                     q = Point2D(Δx, p[2] + m * (Δx - p[1]))
 
                 else
-                    # or it can exit at x = 0 if it points to the left
+                    # A leftward track can exit at x = 0.
                     q = Point2D(0, p[2] - m * p[1])
                 end
 
@@ -216,7 +215,7 @@ function trace!(t::TrackGenerator{T}) where {T}
                 end
             end
 
-            # recalibrate coordinates and compute distance
+            # Shift coordinates into the mesh frame and compute distance.
             p += bb_min
             q += bb_min
             ℓ = norm(p - q)
@@ -227,7 +226,7 @@ function trace!(t::TrackGenerator{T}) where {T}
             BCFwd = get_boundary_condition_at(q, boundary, bcs)
             BCBwd = get_boundary_condition_at(p, boundary, bcs)
 
-            # alternative method
+            # Cross-check boundary conditions using track indices.
             if is_rightward_direction(azimuthal_quadrature, i)
                 BCFwd1 = j ≤ n_tracks_y[i] ? bcs.right : bcs.top
                 BCBwd1 = j ≤ n_tracks_x[i] ? bcs.bottom : bcs.left
@@ -269,7 +268,7 @@ function trace!(t::TrackGenerator{T}) where {T}
         end
     end
 
-    # once we have all tracks and boundary conditions, set next tracks
+    # Set next-track links after all tracks and boundary conditions are known.
     next_tracks(t)
 
     return t
@@ -278,7 +277,7 @@ end
 function next_tracks(t::TrackGenerator)
     @unpack tracks_by_uid = t
 
-    # search for the next track in forward and backward direction
+    # Search for next tracks in the forward and backward directions.
     for track in tracks_by_uid
         next_track_fwd(t, track)
         next_track_bwd(t, track)
@@ -296,7 +295,7 @@ function next_track_fwd(t::TrackGenerator, track::Track)
 
     BCFwd = bc_fwd(track)
 
-    # these are the tracks that arrive to the y-axis
+    # Tracks that arrive at the y-axis.
     if j ≤ n_tracks_y[i]
         if BCFwd == Periodic
             track.next_track_fwd = tracks[i][j+n_tracks_x[i]]
@@ -304,7 +303,7 @@ function next_track_fwd(t::TrackGenerator, track::Track)
             track.next_track_fwd = tracks[k][j+n_tracks_x[i]]
         end
     else
-        # these are the tracks that arrive to the top (superior x-axis)
+        # Tracks that arrive at the top edge.
         if BCFwd == Periodic
             track.next_track_fwd = tracks[i][j-n_tracks_y[i]]
         elseif is_vacuum(BCFwd) || is_reflective(BCFwd)
@@ -324,14 +323,14 @@ function next_track_bwd(t::TrackGenerator, track::Track)
 
     BCBwd = bc_bwd(track)
 
-    # these are the tracks that arrive to the bottom (inferior x-axis)
+    # Tracks that arrive at the bottom edge.
     if j ≤ n_tracks_x[i]
         if is_periodic(BCBwd)
             track.next_track_bwd = tracks[i][j+n_tracks_y[i]]
         elseif is_vacuum(BCBwd) || is_reflective(BCBwd)
             track.next_track_bwd = tracks[k][n_tracks_x[i]-j+1]
         end
-        # these are the tracks that arrive to the y-axis
+        # Tracks that arrive at the y-axis.
     else
         if is_periodic(BCBwd)
             track.next_track_bwd = tracks[i][j-n_tracks_x[i]]
@@ -346,9 +345,8 @@ end
 """
     segmentize!(t::TrackGenerator)
 
-Segmentize tracks, i.e. divide the tracks in segments generated by the intersections
-between the cells or elements of the mesh. This function call is intended to be done after
-calling `[trace!]`(@ref).
+Split tracks into segments generated by intersections with mesh cells/elements. Call this
+after [`trace!`](@ref).
 """
 function segmentize!(t::TrackGenerator{T}; k::Int=5, rtol::Real=Base.rtoldefault(T)) where {T}
     @unpack tracks_by_uid = t

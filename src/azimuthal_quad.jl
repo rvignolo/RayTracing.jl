@@ -28,8 +28,7 @@ The azimuthal quadrature organizes angles into a symmetric structure:
 - **First quadrant**: [0, π/2) with N4 angles
 - **Second quadrant**: [π/2, π) with N4 angles
 
-Angles in (π, 2π) are avoided because of the symmetry of the problem. This helps reducing
-the computational cost.
+Angles in (π, 2π) are avoided because of problem symmetry. This reduces computational cost.
 
 ## Usage
 
@@ -59,8 +58,8 @@ supp_idx = supplementary_azimuthal_idx(aq, 1)  # 4
 The weights `ωₐ` are computed to ensure proper numerical integration:
 
 ```julia
-# Sum of weights should integrate to unity
-sum(aq.ωₐ) ≈ 0.5  # Over half-plane (0, π)
+# The sum of weights should integrate to unity.
+sum(aq.ωₐ) ≈ 0.5  # Over the half-plane (0, π).
 ```
 
 ## Notes

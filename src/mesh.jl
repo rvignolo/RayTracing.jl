@@ -52,7 +52,7 @@ ray tracing pipeline for:
 ## Example
 
 ```julia
-# Create a mesh from a geometric model from Gridap
+# Create a mesh from a Gridap geometric model.
 model = DiscreteModelFromFile(jsonfile)
 mesh = Mesh(model)
 
@@ -113,7 +113,7 @@ Returns the width of the rectangular mesh.
 @inline width(mesh::Mesh) = mesh.bb_max[1] - mesh.bb_min[1]
 
 """
-    width(mesh::Mesh)
+    height(mesh::Mesh)
 
 Returns the height of the rectangular mesh.
 """
@@ -239,7 +239,7 @@ end
 """
     point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D) -> Bool
 
-Checks if a given point `x` lies inside the element defined by the node coordinates ids
+Checks if a given point `x` lies inside the element defined by the node coordinate IDs
 `node_ids`.
 """
 function point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
@@ -273,7 +273,7 @@ end
 """
     point_in_element(mesh::Mesh, _::Val{3}, node_ids::AbstractVector{<:Int32}, x::Point2D) -> Bool
 
-Checks if a given point `x` lies inside the triangle defined by the node coordinates ids
+Checks if a given point `x` lies inside the triangle defined by the node coordinate IDs
 `node_ids`.
 """
 @inline point_in_element(mesh::Mesh, _::Val{3}, node_ids::AbstractVector{<:Int32}, x::Point2D) =
@@ -282,7 +282,7 @@ Checks if a given point `x` lies inside the triangle defined by the node coordin
 """
     point_in_element(mesh::Mesh, _::Val{4}, node_ids::AbstractVector{<:Int32}, x::Point2D) -> Bool
 
-Checks if a given point `x` lies inside the quadrangle defined by the node coordinates ids
+Checks if a given point `x` lies inside the quadrangle defined by the node coordinate IDs
 `node_ids`.
 """
 @inline point_in_element(mesh::Mesh, _::Val{4}, node_ids::AbstractVector{<:Int32}, x::Point2D) =
@@ -352,7 +352,7 @@ The function employs a two-stage search strategy:
 ## Usage Examples
 
 ```julia
-# Find which element contains a specific point
+# Find the element containing a specific point.
 point = Point2D(1.5, 2.3)
 element_id = find_element(mesh, point)
 
@@ -389,21 +389,21 @@ element_id = find_element(mesh, point, k=5)
 function find_element(mesh::Mesh, x::Point2D, k::Int=2)
     @unpack model, kdtree, node_cells = mesh
 
-    # get the nearest node id closest to `x`
+    # Find the nearest node to `x`.
     nn_id, _ = nn(kdtree, x)
 
-    # get the associated cell ids that contain the nearest node
+    # Get the cell IDs associated with the nearest node.
     cell_ids = node_cells[nn_id]
 
-    # define the invalid element id
+    # Define the invalid element ID.
     invalid_element_id = -one(eltype(cell_ids))
 
-    # loop over those cells until the element containing `x` is found
+    # Search those cells for the element containing `x`.
     element = _find_element_in_cells(mesh, cell_ids, x)
     element != invalid_element_id && return element
 
-    # the mesh might be deformed, i.e. the cells that contain the nearest node do not
-    # contain the point `x`. In that case, we need to search for more nodes.
+    # In a deformed mesh, the cells attached to the nearest node may not contain `x`;
+    # search additional nearby nodes in that case.
     nn_ids, _ = knn(kdtree, x, k, true, i -> isequal(i, nn_id)) # TODO: cache!
     for node_id in nn_ids
         cell_ids = node_cells[node_id]
@@ -500,12 +500,13 @@ function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Poi
     r = @SVector [x[1], x[2], 1]
     λ = R \ r
 
-    # return true if it lies in or on the triangle
+    # Return true if `x` lies inside or on the triangle.
     T = eltype(λ)
     tol = sqrt(eps(T))
     domain = ClosedInterval{T}(zero(T) - tol, one(T) + tol)
     return λ[1] in domain && λ[2] in domain && λ[3] in domain
-    # return all(in.(λ, Ref(domain))) # allocates
+    # Equivalent, but allocates:
+    # return all(in.(λ, Ref(domain)))
 end
 
 """
@@ -609,11 +610,11 @@ Collectively cover the quadrangle: Q = T₁ ∪ T₂ ∪ T₃ ∪ T₄
 """
 function point_in_quadrangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
 
-    # triangle node ids
+    # Triangle node IDs.
     t_node_ids = MVector{3,eltype(node_ids)}(undef)
     ordered_ids = ordered_node_ids(mesh, node_ids)
 
-    # look on 4 triangles because we do not know the order of the nodes
+    # Test four triangles because node ordering may vary.
     for i in 1:4
         for j in 1:3
             k = mod1(i + j - 1, 4) # k = (i + j - 2) % 4 + 1, k = mod(i + j - 1, 1:4)

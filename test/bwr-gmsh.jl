@@ -4,12 +4,12 @@ using GridapGmsh: gmsh, GmshDiscreteModel
 function add_pin!(gmsh, o, r, t, lc)
     factory = gmsh.model.geo
 
-    # inner and outer circle
+    # Inner and outer circles.
     l1 = add_circle!(gmsh, o, r, lc)
     l2 = add_circle!(gmsh, o, r + t, lc)
 
     s1 = factory.addPlaneSurface([l1])
-    s2 = factory.addPlaneSurface([l2, l1]) # l1 is a hole
+    s2 = factory.addPlaneSurface([l2, l1]) # l1 is a hole.
 
     return s1, s2
 end
@@ -18,11 +18,11 @@ function add_circle!(gmsh, o, r, lc)
     factory = gmsh.model.geo
     ox, oy = o
 
-    p1 = factory.addPoint(ox, oy, 0, lc)  # center - origin
-    p2 = factory.addPoint(ox + r, oy, 0, lc)  # right
-    p3 = factory.addPoint(ox, oy + r, 0, lc)  # up
-    p4 = factory.addPoint(ox - r, oy, 0, lc)  # left
-    p5 = factory.addPoint(ox, oy - r, 0, lc)  # down
+    p1 = factory.addPoint(ox, oy, 0, lc)  # Center/origin.
+    p2 = factory.addPoint(ox + r, oy, 0, lc)  # Right.
+    p3 = factory.addPoint(ox, oy + r, 0, lc)  # Up.
+    p4 = factory.addPoint(ox - r, oy, 0, lc)  # Left.
+    p5 = factory.addPoint(ox, oy - r, 0, lc)  # Down.
 
     c1 = factory.addCircleArc(p2, p1, p3)
     c2 = factory.addCircleArc(p3, p1, p4)
@@ -54,22 +54,22 @@ end
 
 N = 4
 
-# in cm
-p = 1.6        # pitch
-ri = 0.5       # internal radius
-t = 0.1        # wall thickness
-ro = ri + t    # external radius
+# Dimensions in cm.
+p = 1.6        # Pitch.
+ri = 0.5       # Inner radius.
+t = 0.1        # Wall thickness.
+ro = ri + t    # Outer radius.
 lc = 0.1
 
 gmsh.initialize()
 gmsh.model.add("bwr")
 
-# tags
+# Physical group tags.
 pinTags = Int32[]
 cladTags = Int32[]
 gdPinTags = Int32[]
 
-# gd pins positions
+# Gd pin positions.
 GD_pos = [(2, 3), (3, 2)]
 
 for i in 1:N, j in 1:N
@@ -85,7 +85,7 @@ for i in 1:N, j in 1:N
     end
 end
 
-#! TODO: h2oTag = add_reflector!(gmsh, 4p)
+#! TODO: Add a reflector surface with h2oTag = add_reflector!(gmsh, 4p).
 s = N * p
 factory = gmsh.model.geo
 
@@ -121,7 +121,7 @@ gmsh.model.setPhysicalName(1, pg6, "right")
 gmsh.model.setPhysicalName(1, pg7, "top")
 gmsh.model.setPhysicalName(1, pg8, "left")
 
-# removemos puntos de la geometria duplicados (origenes por ejemplo)
+# Remove duplicate geometry points, such as coincident origins.
 gmsh.model.geo.removeAllDuplicates()
 
 gmsh.model.geo.synchronize()
@@ -144,20 +144,20 @@ Gridap.Io.to_json_file(model, "bwr.json")
 jsonfile = joinpath(@__DIR__,"../bwr.json")
 model = DiscreteModelFromFile(jsonfile)
 
-# number of azimuthal angles
+# Number of azimuthal angles.
 nφ = 16
 
-# azimuthal spacing
+# Azimuthal spacing.
 δ = 0.002
 
-# boundary conditions
+# Boundary conditions.
 bcs = BoundaryConditions(top=Reflective, bottom=Reflective, left=Reflective, right=Reflective)
 
-# initialize track generator
+# Initialize the track generator.
 tg = TrackGenerator(model, nφ, δ, bcs=bcs)
 
-# perform ray tracing
+# Perform ray tracing.
 trace!(tg)
 
-# proceed to segmentation
+# Segment the tracks.
 segmentize!(tg)

@@ -189,7 +189,7 @@ end
         @test DirNextTrackBwd == RayTracing.Backward
     end
 
-    # a more complicated case
+    # A more complicated case.
     tg = TrackGenerator(model, 8, 0.8; bcs=bcs)
     trace!(tg)
 
