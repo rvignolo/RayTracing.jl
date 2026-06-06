@@ -4,7 +4,6 @@ using UnPack
 using RecipesBase
 using StaticArrays
 using IntervalSets
-using Combinatorics
 using LinearAlgebra
 using NearestNeighbors
 using Gridap: VectorValue, num_cells, get_grid

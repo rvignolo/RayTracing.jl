@@ -36,9 +36,21 @@ end
 
 in(x::Point2D, segment::Segment) = point_in_segment(segment.p, segment.q, x)
 
-function point_in_segment(p::Point2D, q::Point2D, x::Point2D)
-    lpx = norm(p - x)
-    lqx = norm(q - x)
-    lpq = norm(p - q)
-    return isapprox(lpx + lqx, lpq)
+@inline function point_in_segment(p::Point2D, q::Point2D, x::Point2D)
+    dx = q[1] - p[1]
+    dy = q[2] - p[2]
+    px = x[1] - p[1]
+    py = x[2] - p[2]
+
+    T = promote_type(eltype(p), eltype(q), eltype(x))
+    scale = max(abs(dx), abs(dy), one(T))
+    rtol = Base.rtoldefault(T)
+
+    cross = dx * py - dy * px
+    abs(cross) <= rtol * scale^2 || return false
+
+    xmin, xmax = minmax(p[1], q[1])
+    ymin, ymax = minmax(p[2], q[2])
+    atol = rtol * scale
+    return xmin - atol <= x[1] <= xmax + atol && ymin - atol <= x[2] <= ymax + atol
 end

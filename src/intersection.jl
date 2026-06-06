@@ -9,6 +9,15 @@ The expected number of intersections.
 """
 const EXPECTED_INTERSECTIONS = 2
 
+@inline function _intersection_point(
+    i::Int, p1::Point2D{T}, p2::Point2D{T}, p3::Point2D{T}, p4::Point2D{T}
+) where {T}
+    i == 1 && return p1
+    i == 2 && return p2
+    i == 3 && return p3
+    return p4
+end
+
 """
     general_form(xi::Point2D, xo::Point2D)
 
@@ -150,10 +159,13 @@ function intersections(
 
     length(cell_node_ids) >= 3 || throw(ArgumentError("Element must have at least 3 nodes"))
 
-    intersection_points = MVector{MAX_INTERSECTIONS,Point2D{T}}(undef)
-
     # The number of intersections determines how the element crossing should be handled.
     num_intersections = 0
+    zero_point = Point2D{T}(0, 0)
+    intersection_1 = zero_point
+    intersection_2 = zero_point
+    intersection_3 = zero_point
+    intersection_4 = zero_point
 
     for edge_idx in eachindex(cell_node_ids)
 
@@ -182,7 +194,18 @@ function intersections(
         else
             # Otherwise, this is a valid intersection.
             num_intersections += 1
-            intersection_points[num_intersections] = x_int
+            if num_intersections == 1
+                intersection_1 = x_int
+            elseif num_intersections == 2
+                intersection_2 = x_int
+            elseif num_intersections == 3
+                intersection_3 = x_int
+            elseif num_intersections == 4
+                intersection_4 = x_int
+            else
+                @warn "Unexpected number of intersections: $num_intersections"
+                return zero_point, zero_point
+            end
         end
     end
 
@@ -191,21 +214,27 @@ function intersections(
         # Vertex intersections can create extra points; keep the farthest pair.
         ℓ = zero(T)
         p = q = u = v = Point2D{T}(0, 0)
-        for (i, j) in combinations(1:num_intersections, 2)
-            u = intersection_points[i]
-            v = intersection_points[j]
-            ℓi = norm(u - v)
-            if ℓi > ℓ
-                p = u
-                q = v
-                ℓ = ℓi
+        for i in 1:(num_intersections-1)
+            u = _intersection_point(
+                i, intersection_1, intersection_2, intersection_3, intersection_4
+            )
+            for j in (i+1):num_intersections
+                v = _intersection_point(
+                    j, intersection_1, intersection_2, intersection_3, intersection_4
+                )
+                ℓi = norm(u - v)
+                if ℓi > ℓ
+                    p = u
+                    q = v
+                    ℓ = ℓi
+                end
             end
         end
         return order_intersection_points(track, p, q)
 
     elseif isequal(num_intersections, EXPECTED_INTERSECTIONS)
 
-        p, q = intersection_points
+        p, q = intersection_1, intersection_2
 
         if isapprox(p, q)
             # The track hits a vertex; return the point itself so the caller can step forward.
