@@ -370,11 +370,7 @@ function fill_volumes(t::TrackGenerator{T}) where {T}
     fill!(volumes, zero(T))
 
     for track in tracks_by_uid
-        a = track.azim_idx
-        for segment in track.segments
-            i = segment.element
-            volumes[i] += δs[a] * segment.ℓ
-        end
+        accumulate_track_volume!(volumes, δs, track)
     end
 
     volumes ./= n_azim_2
@@ -385,6 +381,14 @@ function fill_volumes(t::TrackGenerator{T}) where {T}
         end
     end
 
+    return nothing
+end
+
+function accumulate_track_volume!(volumes, δs, track::Track)
+    δ = δs[track.azim_idx]
+    for segment in track.segments
+        volumes[segment.element] += δ * segment.ℓ
+    end
     return nothing
 end
 
