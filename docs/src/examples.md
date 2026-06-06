@@ -22,10 +22,11 @@ tg.n_total_tracks
 sum(length(track.segments) for track in tg.tracks_by_uid)
 ```
 
-For larger track sets, run Julia with multiple threads and opt in to threaded segmentation:
+For larger track sets, run Julia with multiple threads and use the default `parallel=:auto`
+mode:
 
 ```julia
-segmentize!(tg; parallel=true)
+segmentize!(tg; parallel=:auto)
 ```
 
 ## Plotting Tracks

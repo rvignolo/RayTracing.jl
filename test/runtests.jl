@@ -86,7 +86,7 @@ end
 
     trace!(serial)
     trace!(threaded)
-    segmentize!(serial)
+    segmentize!(serial; parallel=false)
     segmentize!(threaded; parallel=true)
 
     @test serial.volumes ≈ threaded.volumes
@@ -94,6 +94,8 @@ end
     for i in eachindex(serial.tracks_by_uid, threaded.tracks_by_uid)
         @test serial.tracks_by_uid[i].segments == threaded.tracks_by_uid[i].segments
     end
+
+    @test_throws ArgumentError segmentize!(threaded; parallel=:sometimes)
 end
 
 @testset "Reflection tests" begin

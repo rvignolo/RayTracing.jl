@@ -168,7 +168,7 @@ for (name, case) in CASES
         tg = traced_generator($n_azim, $spacing, $bcs, $volume_correction)
     ) evals=1
 
-    group["segmentize! parallel"] = @benchmarkable segmentize!(tg; parallel=true) setup=(
+    group["segmentize! serial"] = @benchmarkable segmentize!(tg; parallel=false) setup=(
         tg = traced_generator($n_azim, $spacing, $bcs, $volume_correction)
     ) evals=1
 
@@ -179,10 +179,11 @@ for (name, case) in CASES
         tg = make_generator($n_azim, $spacing, $bcs, $volume_correction)
     ) evals=1
 
-    group["trace+segmentize! parallel"] = @benchmarkable begin
+    group["trace+segmentize! serial"] = @benchmarkable begin
         trace!(tg)
-        segmentize!(tg; parallel=true)
+        segmentize!(tg; parallel=false)
     end setup=(
         tg = make_generator($n_azim, $spacing, $bcs, $volume_correction)
     ) evals=1
+
 end

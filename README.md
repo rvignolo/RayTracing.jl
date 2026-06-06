@@ -18,7 +18,7 @@ computes ray-tracing volumes for neutron transport workflows such as
 - Vacuum, reflective, and periodic rectangular-domain boundary conditions.
 - Cyclic track connectivity for forward and backward transport sweeps.
 - Track segmentation by mesh element.
-- Opt-in threaded track segmentation with `segmentize!(tg; parallel=true)`.
+- Thread-aware track segmentation with `segmentize!(tg; parallel=:auto)`.
 - Optional exact geometric volume correction.
 - Lightweight Plots.jl recipes through RecipesBase.
 
@@ -113,13 +113,16 @@ After `segmentize!(tg)`, each `Track` contains ordered `Segment`s with:
 The full track graph is available through `tg.tracks_by_uid`, with `next_track_fwd` and
 `next_track_bwd` links plus direction helpers for cyclic sweeps.
 
-For larger track sets, segmentation can run across Julia threads:
+By default, `segmentize!` uses `parallel=:auto`, which runs track segmentation across Julia
+threads when multiple threads are available:
 
 ```julia
-segmentize!(tg; parallel=true)
+segmentize!(tg; parallel=:auto)
 ```
 
 Run Julia with multiple threads, for example `julia -t auto`, to enable parallel execution.
+Use `parallel=false` to force serial execution or `parallel=true` to force threaded execution
+when threads are available.
 
 ## Documentation
 
