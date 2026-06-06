@@ -17,9 +17,10 @@ for ray tracing algorithms in neutron transport simulations.
 - `model::M`: The underlying geometric model containing mesh topology and properties
 - `kdtree::K`: Spatial index structure for efficient nearest-neighbor searches and spatial
   queries
-- `node_cells::N`: Mapping from node indices to the set of cells containing each node
-- `cell_nodes::C`: Mapping from cell indices to the ordered list of node indices defining
-  each cell
+- `node_cells::N`: Materialized mapping from node indices to the set of cells containing
+  each node
+- `cell_nodes::C`: Materialized mapping from cell indices to the ordered list of node
+  indices defining each cell
 - `bb_min::B`: Minimum coordinates of the mesh bounding box (lower-left corner)
 - `bb_max::B`: Maximum coordinates of the mesh bounding box (upper-right corner)
 
@@ -141,10 +142,16 @@ mesh operations:
 function Mesh(model::UnstructuredDiscreteModel)
     grid = get_grid(model)
     kdtree = KDTree(grid)
-    node_cells = get_faces(get_grid_topology(model), 0, num_cell_dims(model))
-    cell_nodes = get_cell_node_ids(grid)
+    node_cells = materialize_connectivity(
+        get_faces(get_grid_topology(model), 0, num_cell_dims(model))
+    )
+    cell_nodes = materialize_connectivity(get_cell_node_ids(grid))
     bb_min, bb_max = bounding_box(grid)
     return Mesh(model, kdtree, node_cells, cell_nodes, bb_min, bb_max)
+end
+
+function materialize_connectivity(connectivity)
+    return [Vector{Int32}(ids) for ids in connectivity]
 end
 
 """
