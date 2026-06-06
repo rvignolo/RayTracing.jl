@@ -145,9 +145,7 @@ intersections, and multiple intersection points.
 See also: [`intersection`](@ref), [`order_intersection_points`](@ref),
 [`general_form`](@ref)
 """
-function intersections(
-    mesh::Mesh, cell_id::Int32, track::Track{BCFwd,BCBwd,DFwd,DBwd,T}
-) where {BCFwd,BCBwd,DFwd,DBwd,T}
+function intersections(mesh::Mesh, cell_id::Int32, track::Track{T}) where {T}
 
     cell_id > 0 || throw(ArgumentError("Cell ID must be positive, got: $cell_id"))
     cell_id <= length(mesh.ordered_cell_nodes) ||

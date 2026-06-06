@@ -36,6 +36,8 @@ model = DiscreteModelFromFile(jsonfile)
 
     tg = TrackGenerator(quad_model, 4, 0.7; bcs=reflective_boundaries(), volume_correction=true)
     trace!(tg)
+    @test eltype(tg.tracks_by_uid) == RayTracing.Track{Float64}
+    @test eltype(tg.tracks[1]) == RayTracing.Track{Float64}
     segmentize!(tg)
     @test tg.volumes ≈ [4.0]
 end
@@ -75,6 +77,22 @@ end
             l2 = sum(RayTracing.ℓ.(track.segments))
             @test isapprox(l1, l2)
         end
+    end
+end
+
+@testset "Parallel segmentation" begin
+    serial = TrackGenerator(model, 4, 0.16; bcs=reflective_boundaries())
+    threaded = TrackGenerator(model, 4, 0.16; bcs=reflective_boundaries())
+
+    trace!(serial)
+    trace!(threaded)
+    segmentize!(serial)
+    segmentize!(threaded; parallel=true)
+
+    @test serial.volumes ≈ threaded.volumes
+    @test length(serial.tracks_by_uid) == length(threaded.tracks_by_uid)
+    for i in eachindex(serial.tracks_by_uid, threaded.tracks_by_uid)
+        @test serial.tracks_by_uid[i].segments == threaded.tracks_by_uid[i].segments
     end
 end
 
