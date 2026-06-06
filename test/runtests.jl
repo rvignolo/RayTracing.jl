@@ -25,9 +25,12 @@ model = DiscreteModelFromFile(jsonfile)
 
     @test quad_mesh.node_cells isa Vector{Vector{Int32}}
     @test quad_mesh.cell_nodes isa Vector{Vector{Int32}}
+    @test quad_mesh.ordered_cell_nodes isa Vector{Vector{Int32}}
+    @test length(quad_mesh.ordered_cell_nodes) == length(quad_mesh.cell_nodes)
     @test RayTracing.point_in_element(quad_mesh, quad_node_ids, RayTracing.Point2D(0.0, 0.0))
     @test !RayTracing.point_in_element(quad_mesh, quad_node_ids, RayTracing.Point2D(2.0, 0.0))
     @test RayTracing.element_volume(quad_mesh, quad_node_ids) ≈ 4.0
+    @test RayTracing.element_volume(quad_mesh, 1) ≈ 4.0
 
     tg = TrackGenerator(quad_model, 4, 0.7; bcs=reflective_boundaries(), volume_correction=true)
     trace!(tg)

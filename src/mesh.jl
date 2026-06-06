@@ -1,5 +1,5 @@
 """
-    Mesh{M,K,N,C,B}
+    Mesh{M,K,NC,T}
 
 A computational mesh structure that holds geometric and topological information essential
 for ray tracing algorithms in neutron transport simulations.
@@ -8,9 +8,8 @@ for ray tracing algorithms in neutron transport simulations.
 
 - `M`: Type of the underlying geometric model
 - `K`: Type of the spatial index structure (typically a KD-tree)
-- `N`: Type of the node-to-cells mapping
-- `C`: Type of the cell-to-nodes mapping
-- `B`: Type of the bounding box coordinates
+- `NC`: Type of the materialized connectivity mappings
+- `T`: Type of the bounding box coordinates
 
 ## Fields
 
@@ -19,8 +18,9 @@ for ray tracing algorithms in neutron transport simulations.
   queries
 - `node_cells::N`: Materialized mapping from node indices to the set of cells containing
   each node
-- `cell_nodes::C`: Materialized mapping from cell indices to the ordered list of node
-  indices defining each cell
+- `cell_nodes::C`: Materialized mapping from cell indices to the node indices defining each
+  cell
+- `ordered_cell_nodes::C`: Cell-node mapping ordered geometrically around each cell
 - `bb_min::B`: Minimum coordinates of the mesh bounding box (lower-left corner)
 - `bb_max::B`: Maximum coordinates of the mesh bounding box (upper-right corner)
 
@@ -81,6 +81,7 @@ struct Mesh{M<:UnstructuredDiscreteModel,K<:KDTree,NC,T}
     kdtree::K
     node_cells::NC
     cell_nodes::NC
+    ordered_cell_nodes::NC
     bb_min::Point2D{T}
     bb_max::Point2D{T}
 end
@@ -146,12 +147,18 @@ function Mesh(model::UnstructuredDiscreteModel)
         get_faces(get_grid_topology(model), 0, num_cell_dims(model))
     )
     cell_nodes = materialize_connectivity(get_cell_node_ids(grid))
+    ordered_cell_nodes = materialize_ordered_cell_nodes(grid, cell_nodes)
     bb_min, bb_max = bounding_box(grid)
-    return Mesh(model, kdtree, node_cells, cell_nodes, bb_min, bb_max)
+    return Mesh(model, kdtree, node_cells, cell_nodes, ordered_cell_nodes, bb_min, bb_max)
 end
 
 function materialize_connectivity(connectivity)
     return [Vector{Int32}(ids) for ids in connectivity]
+end
+
+function materialize_ordered_cell_nodes(grid, cell_nodes)
+    node_coordinates = get_node_coordinates(grid)
+    return [Vector{Int32}(ordered_node_ids(node_coordinates, node_ids)) for node_ids in cell_nodes]
 end
 
 """
@@ -254,9 +261,13 @@ function point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Poin
 end
 
 function ordered_node_ids(mesh::Mesh, node_ids::AbstractVector{<:Integer})
+    node_coordinates = get_node_coordinates(get_grid(mesh.model))
+    return ordered_node_ids(node_coordinates, node_ids)
+end
+
+function ordered_node_ids(node_coordinates, node_ids::AbstractVector{<:Integer})
     length(node_ids) <= 3 && return node_ids
 
-    node_coordinates = get_node_coordinates(get_grid(mesh.model))
     T = eltype(first(node_coordinates))
     cx = zero(T)
     cy = zero(T)

@@ -380,9 +380,8 @@ function fill_volumes(t::TrackGenerator{T}) where {T}
     volumes ./= n_azim_2
 
     if volume_correction
-        @unpack cell_nodes = mesh
         for i in eachindex(volumes)
-            volumes[i] = element_volume(mesh, cell_nodes[i])
+            volumes[i] = element_volume(mesh, i)
         end
     end
 
@@ -393,7 +392,16 @@ function element_volume(mesh, node_ids)
     @unpack model = mesh
     node_coordinates = get_node_coordinates(get_grid(model))
     ordered_ids = ordered_node_ids(mesh, node_ids)
+    return _element_volume_from_ordered_nodes(node_coordinates, ordered_ids)
+end
 
+function element_volume(mesh::Mesh, cell_id::Integer)
+    @unpack model, ordered_cell_nodes = mesh
+    node_coordinates = get_node_coordinates(get_grid(model))
+    return _element_volume_from_ordered_nodes(node_coordinates, ordered_cell_nodes[cell_id])
+end
+
+function _element_volume_from_ordered_nodes(node_coordinates, ordered_ids)
     area = zero(eltype(first(node_coordinates)))
     for i in eachindex(ordered_ids)
         j = i == lastindex(ordered_ids) ? firstindex(ordered_ids) : i + 1

@@ -76,7 +76,7 @@ end
 function element_volume_batch(mesh, cell_ids)
     s = 0.0
     @inbounds for cell_id in cell_ids
-        s += RayTracing.element_volume(mesh, mesh.cell_nodes[cell_id])
+        s += RayTracing.element_volume(mesh, cell_id)
     end
     return s
 end

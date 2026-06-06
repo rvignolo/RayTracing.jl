@@ -142,11 +142,12 @@ function intersections(
 ) where {BCFwd,BCBwd,DFwd,DBwd,T}
 
     cell_id > 0 || throw(ArgumentError("Cell ID must be positive, got: $cell_id"))
-    cell_id <= length(mesh.cell_nodes) || throw(ArgumentError("Cell ID out of range: $cell_id"))
+    cell_id <= length(mesh.ordered_cell_nodes) ||
+        throw(ArgumentError("Cell ID out of range: $cell_id"))
 
-    @unpack model, cell_nodes = mesh
+    @unpack model, ordered_cell_nodes = mesh
     node_coordinates = get_node_coordinates(get_grid(model))
-    cell_node_ids = ordered_node_ids(mesh, cell_nodes[cell_id])
+    cell_node_ids = ordered_cell_nodes[cell_id]
 
     length(cell_node_ids) >= 3 || throw(ArgumentError("Element must have at least 3 nodes"))
 
