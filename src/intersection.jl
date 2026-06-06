@@ -9,6 +9,13 @@ The expected number of intersections.
 """
 const EXPECTED_INTERSECTIONS = 2
 
+@noinline function _unexpected_intersections_error(num_intersections, cell_id)
+    error(
+        "Unexpected number of intersections ($num_intersections) for cell $cell_id; " *
+        "expected at most $MAX_INTERSECTIONS for a convex mesh element."
+    )
+end
+
 """
     general_form(xi::Point2D, xo::Point2D)
 
@@ -130,6 +137,7 @@ intersections, and multiple intersection points.
 ## Notes
 
 - Returns `(Point2D(0,0), Point2D(0,0))` for cases with no valid intersections
+- Throws an error if the intersection count violates the convex element assumption
 - The function is designed for robustness over speed in edge cases
 - Used extensively in track segmentation for neutron transport calculations
 - Intersection points are ordered according to the track's azimuthal direction
@@ -183,8 +191,7 @@ function intersections(
             # Otherwise, this is a valid intersection.
             num_intersections += 1
             if num_intersections > MAX_INTERSECTIONS
-                @warn "Unexpected number of intersections: $num_intersections"
-                return zero_point, zero_point
+                _unexpected_intersections_error(num_intersections, cell_id)
             end
             intersection_points[num_intersections] = x_int
         end
@@ -194,7 +201,7 @@ function intersections(
 
         # Vertex intersections can create extra points; keep the farthest pair.
         ℓ = zero(T)
-        p = q = u = v = Point2D{T}(0, 0)
+        p = q = u = v = zero_point
         for i in 1:(num_intersections-1)
             u = intersection_points[i]
             for j in (i+1):num_intersections
@@ -211,7 +218,7 @@ function intersections(
 
     elseif isequal(num_intersections, EXPECTED_INTERSECTIONS)
 
-        p, q = intersection_points[1], intersection_points[2]
+        p, q = intersection_points
 
         if isapprox(p, q)
             # The track hits a vertex; return the point itself so the caller can step forward.
@@ -222,11 +229,10 @@ function intersections(
 
     elseif iszero(num_intersections) || isone(num_intersections)
         # The caller handles this by moving a tiny step forward.
-        return Point2D{T}(0, 0), Point2D{T}(0, 0)
+        return zero_point, zero_point
     else
         # This should never happen with a convex polygon, but handle it defensively.
-        @warn "Unexpected number of intersections: $num_intersections"
-        return Point2D{T}(0, 0), Point2D{T}(0, 0)
+        _unexpected_intersections_error(num_intersections, cell_id)
     end
 end
 
