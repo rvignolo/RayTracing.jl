@@ -116,10 +116,7 @@ end
 end
 
 @recipe function plot(mesh::Mesh)
-    @unpack cell_nodes, model = mesh
-
-    grid = get_grid(model)
-    nodes = get_node_coordinates(grid)
+    @unpack cell_nodes, node_coordinates = mesh
 
     n_cells = length(cell_nodes)
     max_nodes = maximum(length, cell_nodes)
@@ -132,11 +129,11 @@ end
     for (i, node_ids) in enumerate(cell_nodes)
         ids = ordered_node_ids(mesh, node_ids)
         for (j, node_id) in enumerate(ids)
-            x[j, i] = nodes[node_id][1]
-            y[j, i] = nodes[node_id][2]
+            x[j, i] = node_coordinates[node_id][1]
+            y[j, i] = node_coordinates[node_id][2]
         end
-        x[length(ids)+1, i] = nodes[first(ids)][1]
-        y[length(ids)+1, i] = nodes[first(ids)][2]
+        x[length(ids)+1, i] = node_coordinates[first(ids)][1]
+        y[length(ids)+1, i] = node_coordinates[first(ids)][2]
     end
 
     seriestype := :path

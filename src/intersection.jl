@@ -145,8 +145,7 @@ function intersections(
     cell_id <= length(mesh.ordered_cell_nodes) ||
         throw(ArgumentError("Cell ID out of range: $cell_id"))
 
-    @unpack model, ordered_cell_nodes = mesh
-    node_coordinates = get_node_coordinates(get_grid(model))
+    @unpack node_coordinates, ordered_cell_nodes = mesh
     cell_node_ids = ordered_cell_nodes[cell_id]
 
     length(cell_node_ids) >= 3 || throw(ArgumentError("Element must have at least 3 nodes"))

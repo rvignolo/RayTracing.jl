@@ -9,27 +9,29 @@ for ray tracing algorithms in neutron transport simulations.
 - `M`: Type of the underlying geometric model
 - `K`: Type of the spatial index structure (typically a KD-tree)
 - `NC`: Type of the materialized connectivity mappings
-- `T`: Type of the bounding box coordinates
+- `T`: Type of the mesh coordinates
 
 ## Fields
 
 - `model::M`: The underlying geometric model containing mesh topology and properties
+- `node_coordinates::Vector{Point2D{T}}`: Materialized node coordinates used by geometric
+  kernels
 - `kdtree::K`: Spatial index structure for efficient nearest-neighbor searches and spatial
   queries
-- `node_cells::N`: Materialized mapping from node indices to the set of cells containing
+- `node_cells::NC`: Materialized mapping from node indices to the set of cells containing
   each node
-- `cell_nodes::C`: Materialized mapping from cell indices to the node indices defining each
+- `cell_nodes::NC`: Materialized mapping from cell indices to the node indices defining each
   cell
-- `ordered_cell_nodes::C`: Cell-node mapping ordered geometrically around each cell
-- `bb_min::B`: Minimum coordinates of the mesh bounding box (lower-left corner)
-- `bb_max::B`: Maximum coordinates of the mesh bounding box (upper-right corner)
+- `ordered_cell_nodes::NC`: Cell-node mapping ordered geometrically around each cell
+- `bb_min::Point2D{T}`: Minimum coordinates of the mesh bounding box (lower-left corner)
+- `bb_max::Point2D{T}`: Maximum coordinates of the mesh bounding box (upper-right corner)
 
 ## Purpose
 
 This structure serves as the primary data container for mesh-based ray tracing algorithms,
 providing:
 
-1. **Geometric Information**: Node coordinates and cell definitions through the model
+1. **Geometric Information**: Cached node coordinates and cell definitions
 2. **Topological Relationships**: Efficient lookups between nodes and cells
 3. **Spatial Indexing**: Fast spatial queries using the KD-tree
 4. **Bounding Information**: Global mesh bounds for optimization and validation
@@ -78,6 +80,7 @@ in_bounds = all(mesh.bb_min .≤ point .≤ mesh.bb_max)
 """
 struct Mesh{M<:UnstructuredDiscreteModel,K<:KDTree,NC,T}
     model::M
+    node_coordinates::Vector{Point2D{T}}
     kdtree::K
     node_cells::NC
     cell_nodes::NC
@@ -142,22 +145,29 @@ mesh operations:
 """
 function Mesh(model::UnstructuredDiscreteModel)
     grid = get_grid(model)
-    kdtree = KDTree(grid)
+    node_coordinates = materialize_node_coordinates(grid)
+    kdtree = KDTree(node_coordinates)
     node_cells = materialize_connectivity(
         get_faces(get_grid_topology(model), 0, num_cell_dims(model))
     )
     cell_nodes = materialize_connectivity(get_cell_node_ids(grid))
-    ordered_cell_nodes = materialize_ordered_cell_nodes(grid, cell_nodes)
-    bb_min, bb_max = bounding_box(grid)
-    return Mesh(model, kdtree, node_cells, cell_nodes, ordered_cell_nodes, bb_min, bb_max)
+    ordered_cell_nodes = materialize_ordered_cell_nodes(node_coordinates, cell_nodes)
+    bb_min, bb_max = bounding_box(node_coordinates)
+    return Mesh(
+        model, node_coordinates, kdtree, node_cells, cell_nodes, ordered_cell_nodes,
+        bb_min, bb_max
+    )
+end
+
+function materialize_node_coordinates(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
+    return convert.(Point2D{Tp}, get_node_coordinates(grid))
 end
 
 function materialize_connectivity(connectivity)
     return [Vector{Int32}(ids) for ids in connectivity]
 end
 
-function materialize_ordered_cell_nodes(grid, cell_nodes)
-    node_coordinates = get_node_coordinates(grid)
+function materialize_ordered_cell_nodes(node_coordinates, cell_nodes)
     return [Vector{Int32}(ordered_node_ids(node_coordinates, node_ids)) for node_ids in cell_nodes]
 end
 
@@ -183,6 +193,12 @@ function KDTree(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
     return KDTree(static_nodes)
 end
 
+function KDTree(node_coordinates::AbstractVector{<:Point2D})
+    T = eltype(first(node_coordinates))
+    static_nodes = convert.(SVector{2,T}, node_coordinates)
+    return KDTree(static_nodes)
+end
+
 """
     bounding_box(grid::UnstructuredGrid{Dc,Dp,Tp}) -> Tuple{Point2D{Tp}, Point2D{Tp}}
 
@@ -200,21 +216,23 @@ The bounding box is computed by finding the minimum and maximum coordinates acro
 nodes in each spatial dimension.
 """
 function bounding_box(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
-    nodes = get_node_coordinates(grid)
+    return bounding_box(materialize_node_coordinates(grid))
+end
 
-    xmin = MVector{Dp,Tp}(Tuple(first(nodes)))
-    xmax = MVector{Dp,Tp}(Tuple(first(nodes)))
+function bounding_box(nodes::AbstractVector{Point2D{T}}) where {T}
+    xmin = MVector{2,T}(Tuple(first(nodes)))
+    xmax = MVector{2,T}(Tuple(first(nodes)))
 
     for node in nodes
-        for i in 1:Dp
+        for i in 1:2
             xi = node[i]
             xmin[i] = min(xmin[i], xi)
             xmax[i] = max(xmax[i], xi)
         end
     end
 
-    bb_min = convert(Point2D{Tp}, xmin)
-    bb_max = convert(Point2D{Tp}, xmax)
+    bb_min = convert(Point2D{T}, xmin)
+    bb_max = convert(Point2D{T}, xmax)
 
     return bb_min, bb_max
 end
@@ -261,8 +279,7 @@ function point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Poin
 end
 
 function ordered_node_ids(mesh::Mesh, node_ids::AbstractVector{<:Integer})
-    node_coordinates = get_node_coordinates(get_grid(mesh.model))
-    return ordered_node_ids(node_coordinates, node_ids)
+    return ordered_node_ids(mesh.node_coordinates, node_ids)
 end
 
 function ordered_node_ids(node_coordinates, node_ids::AbstractVector{<:Integer})
@@ -507,8 +524,7 @@ The point is:
 - [`find_element`](@ref): Find which element contains a point
 """
 function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
-    @unpack model = mesh
-    node_coordinates = get_node_coordinates(get_grid(model))
+    @unpack node_coordinates = mesh
 
     x1, y1 = node_coordinates[node_ids[1]]
     x2, y2 = node_coordinates[node_ids[2]]

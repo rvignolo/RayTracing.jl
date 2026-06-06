@@ -26,6 +26,8 @@ model = DiscreteModelFromFile(jsonfile)
     @test quad_mesh.node_cells isa Vector{Vector{Int32}}
     @test quad_mesh.cell_nodes isa Vector{Vector{Int32}}
     @test quad_mesh.ordered_cell_nodes isa Vector{Vector{Int32}}
+    @test quad_mesh.node_coordinates isa Vector{RayTracing.Point2D{Float64}}
+    @test length(quad_mesh.node_coordinates) == RayTracing.num_nodes(quad_mesh)
     @test length(quad_mesh.ordered_cell_nodes) == length(quad_mesh.cell_nodes)
     @test RayTracing.point_in_element(quad_mesh, quad_node_ids, RayTracing.Point2D(0.0, 0.0))
     @test !RayTracing.point_in_element(quad_mesh, quad_node_ids, RayTracing.Point2D(2.0, 0.0))

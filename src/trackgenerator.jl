@@ -389,15 +389,13 @@ function fill_volumes(t::TrackGenerator{T}) where {T}
 end
 
 function element_volume(mesh, node_ids)
-    @unpack model = mesh
-    node_coordinates = get_node_coordinates(get_grid(model))
+    @unpack node_coordinates = mesh
     ordered_ids = ordered_node_ids(mesh, node_ids)
     return _element_volume_from_ordered_nodes(node_coordinates, ordered_ids)
 end
 
 function element_volume(mesh::Mesh, cell_id::Integer)
-    @unpack model, ordered_cell_nodes = mesh
-    node_coordinates = get_node_coordinates(get_grid(model))
+    @unpack node_coordinates, ordered_cell_nodes = mesh
     return _element_volume_from_ordered_nodes(node_coordinates, ordered_cell_nodes[cell_id])
 end
 
