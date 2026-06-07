@@ -1,5 +1,5 @@
 """
-    Mesh{M,K,N,C,B}
+    Mesh{M,K,NC,T}
 
 A computational mesh structure that holds geometric and topological information essential
 for ray tracing algorithms in neutron transport simulations.
@@ -8,27 +8,30 @@ for ray tracing algorithms in neutron transport simulations.
 
 - `M`: Type of the underlying geometric model
 - `K`: Type of the spatial index structure (typically a KD-tree)
-- `N`: Type of the node-to-cells mapping
-- `C`: Type of the cell-to-nodes mapping
-- `B`: Type of the bounding box coordinates
+- `NC`: Type of the materialized connectivity mappings
+- `T`: Type of the mesh coordinates
 
 ## Fields
 
 - `model::M`: The underlying geometric model containing mesh topology and properties
+- `node_coordinates::Vector{Point2D{T}}`: Materialized node coordinates used by geometric
+  kernels
 - `kdtree::K`: Spatial index structure for efficient nearest-neighbor searches and spatial
   queries
-- `node_cells::N`: Mapping from node indices to the set of cells containing each node
-- `cell_nodes::C`: Mapping from cell indices to the ordered list of node indices defining
-  each cell
-- `bb_min::B`: Minimum coordinates of the mesh bounding box (lower-left corner)
-- `bb_max::B`: Maximum coordinates of the mesh bounding box (upper-right corner)
+- `node_cells::NC`: Materialized mapping from node indices to the set of cells containing
+  each node
+- `cell_nodes::NC`: Materialized mapping from cell indices to the node indices defining each
+  cell
+- `ordered_cell_nodes::NC`: Cell-node mapping ordered geometrically around each cell
+- `bb_min::Point2D{T}`: Minimum coordinates of the mesh bounding box (lower-left corner)
+- `bb_max::Point2D{T}`: Maximum coordinates of the mesh bounding box (upper-right corner)
 
 ## Purpose
 
 This structure serves as the primary data container for mesh-based ray tracing algorithms,
 providing:
 
-1. **Geometric Information**: Node coordinates and cell definitions through the model
+1. **Geometric Information**: Cached node coordinates and cell definitions
 2. **Topological Relationships**: Efficient lookups between nodes and cells
 3. **Spatial Indexing**: Fast spatial queries using the KD-tree
 4. **Bounding Information**: Global mesh bounds for optimization and validation
@@ -52,7 +55,7 @@ ray tracing pipeline for:
 ## Example
 
 ```julia
-# Create a mesh from a geometric model from Gridap
+# Create a mesh from a Gridap geometric model.
 model = DiscreteModelFromFile(jsonfile)
 mesh = Mesh(model)
 
@@ -77,9 +80,11 @@ in_bounds = all(mesh.bb_min .≤ point .≤ mesh.bb_max)
 """
 struct Mesh{M<:UnstructuredDiscreteModel,K<:KDTree,NC,T}
     model::M
+    node_coordinates::Vector{Point2D{T}}
     kdtree::K
     node_cells::NC
     cell_nodes::NC
+    ordered_cell_nodes::NC
     bb_min::Point2D{T}
     bb_max::Point2D{T}
 end
@@ -113,7 +118,7 @@ Returns the width of the rectangular mesh.
 @inline width(mesh::Mesh) = mesh.bb_max[1] - mesh.bb_min[1]
 
 """
-    width(mesh::Mesh)
+    height(mesh::Mesh)
 
 Returns the height of the rectangular mesh.
 """
@@ -140,11 +145,30 @@ mesh operations:
 """
 function Mesh(model::UnstructuredDiscreteModel)
     grid = get_grid(model)
-    kdtree = KDTree(grid)
-    node_cells = get_faces(get_grid_topology(model), 0, num_cell_dims(model))
-    cell_nodes = get_cell_node_ids(grid)
-    bb_min, bb_max = bounding_box(grid)
-    return Mesh(model, kdtree, node_cells, cell_nodes, bb_min, bb_max)
+    node_coordinates = materialize_node_coordinates(grid)
+    kdtree = KDTree(node_coordinates)
+    node_cells = materialize_connectivity(
+        get_faces(get_grid_topology(model), 0, num_cell_dims(model))
+    )
+    cell_nodes = materialize_connectivity(get_cell_node_ids(grid))
+    ordered_cell_nodes = materialize_ordered_cell_nodes(node_coordinates, cell_nodes)
+    bb_min, bb_max = bounding_box(node_coordinates)
+    return Mesh(
+        model, node_coordinates, kdtree, node_cells, cell_nodes, ordered_cell_nodes,
+        bb_min, bb_max
+    )
+end
+
+function materialize_node_coordinates(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
+    return convert.(Point2D{Tp}, get_node_coordinates(grid))
+end
+
+function materialize_connectivity(connectivity)
+    return [Vector{Int32}(ids) for ids in connectivity]
+end
+
+function materialize_ordered_cell_nodes(node_coordinates, cell_nodes)
+    return [Vector{Int32}(ordered_node_ids(node_coordinates, node_ids)) for node_ids in cell_nodes]
 end
 
 """
@@ -169,6 +193,12 @@ function KDTree(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
     return KDTree(static_nodes)
 end
 
+function KDTree(node_coordinates::AbstractVector{<:Point2D})
+    T = eltype(first(node_coordinates))
+    static_nodes = convert.(SVector{2,T}, node_coordinates)
+    return KDTree(static_nodes)
+end
+
 """
     bounding_box(grid::UnstructuredGrid{Dc,Dp,Tp}) -> Tuple{Point2D{Tp}, Point2D{Tp}}
 
@@ -186,21 +216,23 @@ The bounding box is computed by finding the minimum and maximum coordinates acro
 nodes in each spatial dimension.
 """
 function bounding_box(grid::UnstructuredGrid{Dc,Dp,Tp}) where {Dc,Dp,Tp}
-    nodes = get_node_coordinates(grid)
+    return bounding_box(materialize_node_coordinates(grid))
+end
 
-    xmin = MVector{Dp,Tp}(Tuple(first(nodes)))
-    xmax = MVector{Dp,Tp}(Tuple(first(nodes)))
+function bounding_box(nodes::AbstractVector{Point2D{T}}) where {T}
+    xmin = MVector{2,T}(Tuple(first(nodes)))
+    xmax = MVector{2,T}(Tuple(first(nodes)))
 
     for node in nodes
-        for i in 1:Dp
+        for i in 1:2
             xi = node[i]
             xmin[i] = min(xmin[i], xi)
             xmax[i] = max(xmax[i], xi)
         end
     end
 
-    bb_min = convert(Point2D{Tp}, xmin)
-    bb_max = convert(Point2D{Tp}, xmax)
+    bb_min = convert(Point2D{T}, xmin)
+    bb_max = convert(Point2D{T}, xmax)
 
     return bb_min, bb_max
 end
@@ -239,7 +271,7 @@ end
 """
     point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D) -> Bool
 
-Checks if a given point `x` lies inside the element defined by the node coordinates ids
+Checks if a given point `x` lies inside the element defined by the node coordinate IDs
 `node_ids`.
 """
 function point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
@@ -247,9 +279,12 @@ function point_in_element(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Poin
 end
 
 function ordered_node_ids(mesh::Mesh, node_ids::AbstractVector{<:Integer})
+    return ordered_node_ids(mesh.node_coordinates, node_ids)
+end
+
+function ordered_node_ids(node_coordinates, node_ids::AbstractVector{<:Integer})
     length(node_ids) <= 3 && return node_ids
 
-    node_coordinates = get_node_coordinates(get_grid(mesh.model))
     T = eltype(first(node_coordinates))
     cx = zero(T)
     cy = zero(T)
@@ -273,7 +308,7 @@ end
 """
     point_in_element(mesh::Mesh, _::Val{3}, node_ids::AbstractVector{<:Int32}, x::Point2D) -> Bool
 
-Checks if a given point `x` lies inside the triangle defined by the node coordinates ids
+Checks if a given point `x` lies inside the triangle defined by the node coordinate IDs
 `node_ids`.
 """
 @inline point_in_element(mesh::Mesh, _::Val{3}, node_ids::AbstractVector{<:Int32}, x::Point2D) =
@@ -282,7 +317,7 @@ Checks if a given point `x` lies inside the triangle defined by the node coordin
 """
     point_in_element(mesh::Mesh, _::Val{4}, node_ids::AbstractVector{<:Int32}, x::Point2D) -> Bool
 
-Checks if a given point `x` lies inside the quadrangle defined by the node coordinates ids
+Checks if a given point `x` lies inside the quadrangle defined by the node coordinate IDs
 `node_ids`.
 """
 @inline point_in_element(mesh::Mesh, _::Val{4}, node_ids::AbstractVector{<:Int32}, x::Point2D) =
@@ -352,7 +387,7 @@ The function employs a two-stage search strategy:
 ## Usage Examples
 
 ```julia
-# Find which element contains a specific point
+# Find the element containing a specific point.
 point = Point2D(1.5, 2.3)
 element_id = find_element(mesh, point)
 
@@ -389,21 +424,21 @@ element_id = find_element(mesh, point, k=5)
 function find_element(mesh::Mesh, x::Point2D, k::Int=2)
     @unpack model, kdtree, node_cells = mesh
 
-    # get the nearest node id closest to `x`
+    # Find the nearest node to `x`.
     nn_id, _ = nn(kdtree, x)
 
-    # get the associated cell ids that contain the nearest node
+    # Get the cell IDs associated with the nearest node.
     cell_ids = node_cells[nn_id]
 
-    # define the invalid element id
+    # Define the invalid element ID.
     invalid_element_id = -one(eltype(cell_ids))
 
-    # loop over those cells until the element containing `x` is found
+    # Search those cells for the element containing `x`.
     element = _find_element_in_cells(mesh, cell_ids, x)
     element != invalid_element_id && return element
 
-    # the mesh might be deformed, i.e. the cells that contain the nearest node do not
-    # contain the point `x`. In that case, we need to search for more nodes.
+    # In a deformed mesh, the cells attached to the nearest node may not contain `x`;
+    # search additional nearby nodes in that case.
     nn_ids, _ = knn(kdtree, x, k, true, i -> isequal(i, nn_id)) # TODO: cache!
     for node_id in nn_ids
         cell_ids = node_cells[node_id]
@@ -489,8 +524,7 @@ The point is:
 - [`find_element`](@ref): Find which element contains a point
 """
 function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
-    @unpack model = mesh
-    node_coordinates = get_node_coordinates(get_grid(model))
+    @unpack node_coordinates = mesh
 
     x1, y1 = node_coordinates[node_ids[1]]
     x2, y2 = node_coordinates[node_ids[2]]
@@ -500,12 +534,13 @@ function point_in_triangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Poi
     r = @SVector [x[1], x[2], 1]
     λ = R \ r
 
-    # return true if it lies in or on the triangle
+    # Return true if `x` lies inside or on the triangle.
     T = eltype(λ)
     tol = sqrt(eps(T))
     domain = ClosedInterval{T}(zero(T) - tol, one(T) + tol)
     return λ[1] in domain && λ[2] in domain && λ[3] in domain
-    # return all(in.(λ, Ref(domain))) # allocates
+    # Equivalent, but allocates:
+    # return all(in.(λ, Ref(domain)))
 end
 
 """
@@ -609,11 +644,11 @@ Collectively cover the quadrangle: Q = T₁ ∪ T₂ ∪ T₃ ∪ T₄
 """
 function point_in_quadrangle(mesh::Mesh, node_ids::AbstractVector{<:Int32}, x::Point2D)
 
-    # triangle node ids
+    # Triangle node IDs.
     t_node_ids = MVector{3,eltype(node_ids)}(undef)
     ordered_ids = ordered_node_ids(mesh, node_ids)
 
-    # look on 4 triangles because we do not know the order of the nodes
+    # Test four triangles because node ordering may vary.
     for i in 1:4
         for j in 1:3
             k = mod1(i + j - 1, 4) # k = (i + j - 2) % 4 + 1, k = mod(i + j - 1, 1:4)

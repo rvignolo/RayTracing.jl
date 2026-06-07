@@ -22,6 +22,13 @@ tg.n_total_tracks
 sum(length(track.segments) for track in tg.tracks_by_uid)
 ```
 
+For larger track sets, run Julia with multiple threads and use the default `parallel=:auto`
+mode:
+
+```julia
+segmentize!(tg; parallel=:auto)
+```
+
 ## Plotting Tracks
 
 RayTracing plotting recipes are enabled when Plots.jl is loaded:

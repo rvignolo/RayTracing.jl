@@ -20,6 +20,11 @@ and stores per-cell ray-tracing volumes for downstream transport sweeps.
 4. Run [`segmentize!`](@ref) to split tracks into cell-local [`Segment`](@ref)s.
 5. Use `tg.tracks_by_uid`, `tg.volumes`, and the azimuthal quadrature data in a solver.
 
+Track segmentation uses `parallel=:auto` by default. When Julia is running with multiple
+threads, `segmentize!(tg)` uses threaded segmentation.
+Threaded segmentation mutates each track's own segment vector and fills `tg.volumes` after
+all threaded work completes, so do not call `segmentize!` concurrently on the same generator.
+
 ## Quick Start
 
 ```julia
