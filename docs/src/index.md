@@ -22,6 +22,8 @@ and stores per-cell ray-tracing volumes for downstream transport sweeps.
 
 Track segmentation uses `parallel=:auto` by default. When Julia is running with multiple
 threads, `segmentize!(tg)` uses threaded segmentation.
+Threaded segmentation mutates each track's own segment vector and fills `tg.volumes` after
+all threaded work completes, so do not call `segmentize!` concurrently on the same generator.
 
 ## Quick Start
 

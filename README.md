@@ -124,6 +124,10 @@ Run Julia with multiple threads, for example `julia -t auto`, to enable parallel
 Use `parallel=false` to force serial execution or `parallel=true` to force threaded execution
 when threads are available.
 
+Threaded segmentation is intended for one `segmentize!(tg)` call at a time. It mutates each
+track's own `segments` vector in parallel, then fills `tg.volumes` serially after all tracks
+finish.
+
 ## Documentation
 
 Build local docs with:

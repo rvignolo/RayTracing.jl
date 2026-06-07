@@ -5,6 +5,50 @@ using Test
 jsonfile = joinpath(@__DIR__, "../demo/pincell.json")
 model = DiscreteModelFromFile(jsonfile)
 
+const RUN_EXTENDED_THREAD_TESTS = get(ENV, "RAYTRACING_EXTENDED_TESTS", "false") == "true"
+
+function assert_equivalent_segmentization(serial, threaded)
+    @test serial.volumes ≈ threaded.volumes
+    @test length(serial.tracks_by_uid) == length(threaded.tracks_by_uid)
+
+    serial_segment_vectors = [track.segments for track in serial.tracks_by_uid]
+    threaded_segment_vectors = [track.segments for track in threaded.tracks_by_uid]
+    @test length(unique(objectid.(serial_segment_vectors))) == length(serial_segment_vectors)
+    @test length(unique(objectid.(threaded_segment_vectors))) == length(threaded_segment_vectors)
+
+    for (serial_track, threaded_track) in zip(serial.tracks_by_uid, threaded.tracks_by_uid)
+        @test serial_track.segments == threaded_track.segments
+        @test serial_track.next_track_fwd.uid == threaded_track.next_track_fwd.uid
+        @test serial_track.next_track_bwd.uid == threaded_track.next_track_bwd.uid
+        @test RayTracing.dir_next_track_fwd(serial_track) ==
+              RayTracing.dir_next_track_fwd(threaded_track)
+        @test RayTracing.dir_next_track_bwd(serial_track) ==
+              RayTracing.dir_next_track_bwd(threaded_track)
+    end
+
+    return nothing
+end
+
+function threaded_segmentation_case(model, n_azim, spacing, bcs, volume_correction)
+    serial = TrackGenerator(model, n_azim, spacing; bcs, volume_correction)
+    threaded = TrackGenerator(model, n_azim, spacing; bcs, volume_correction)
+
+    trace!(serial)
+    trace!(threaded)
+    segmentize!(serial; parallel=false)
+    segmentize!(threaded; parallel=true)
+
+    assert_equivalent_segmentization(serial, threaded)
+
+    baseline_segments = [copy(track.segments) for track in threaded.tracks_by_uid]
+    segmentize!(threaded; parallel=true)
+    for (baseline, track) in zip(baseline_segments, threaded.tracks_by_uid)
+        @test baseline == track.segments
+    end
+
+    return threaded
+end
+
 @testset "Geometry utilities" begin
     point = RayTracing.Point2D(1.0, 2.0)
     @test RayTracing.is_approx(point, point)
@@ -81,21 +125,45 @@ end
 end
 
 @testset "Parallel segmentation" begin
-    serial = TrackGenerator(model, 4, 0.16; bcs=reflective_boundaries())
-    threaded = TrackGenerator(model, 4, 0.16; bcs=reflective_boundaries())
+    cases = (
+        (; name="vacuum", bcs=vacuum_boundaries(), volume_correction=false),
+        (; name="reflective", bcs=reflective_boundaries(), volume_correction=false),
+        (; name="periodic", bcs=periodic_boundaries(), volume_correction=false),
+        (; name="volume correction", bcs=vacuum_boundaries(), volume_correction=true),
+    )
 
-    trace!(serial)
-    trace!(threaded)
-    segmentize!(serial; parallel=false)
-    segmentize!(threaded; parallel=true)
-
-    @test serial.volumes ≈ threaded.volumes
-    @test length(serial.tracks_by_uid) == length(threaded.tracks_by_uid)
-    for i in eachindex(serial.tracks_by_uid, threaded.tracks_by_uid)
-        @test serial.tracks_by_uid[i].segments == threaded.tracks_by_uid[i].segments
+    for case in cases
+        @testset "$(case.name)" begin
+            threaded = threaded_segmentation_case(
+                model, 4, 0.16, case.bcs, case.volume_correction
+            )
+            @test_throws ArgumentError segmentize!(threaded; parallel=:sometimes)
+        end
     end
 
-    @test_throws ArgumentError segmentize!(threaded; parallel=:sometimes)
+    if RUN_EXTENDED_THREAD_TESTS
+        @testset "extended stress" begin
+            extended_cases = (
+                (; name="vacuum fine", n_azim=16, spacing=0.04,
+                 bcs=vacuum_boundaries(), volume_correction=false),
+                (; name="reflective fine", n_azim=16, spacing=0.04,
+                 bcs=reflective_boundaries(), volume_correction=false),
+                (; name="periodic fine", n_azim=16, spacing=0.04,
+                 bcs=periodic_boundaries(), volume_correction=false),
+            )
+
+            for case in extended_cases
+                @testset "$(case.name)" begin
+                    for _ in 1:8
+                        threaded_segmentation_case(
+                            model, case.n_azim, case.spacing, case.bcs,
+                            case.volume_correction
+                        )
+                    end
+                end
+            end
+        end
+    end
 end
 
 @testset "Reflection tests" begin
