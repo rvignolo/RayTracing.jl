@@ -100,12 +100,26 @@ end
     end
 
     @testset "Azimuthal quadrature" begin
-        @test isequal(RayTracing.n_azim_total(tg.azimuthal_quadrature), 8)
-        @test isequal(RayTracing.n_azim_half(tg.azimuthal_quadrature), 4)
-        @test isequal(RayTracing.n_azim_quad(tg.azimuthal_quadrature), 2)
-        @test isapprox(tg.azimuthal_quadrature.δ, 0.02)
-        @test all(isapprox.(tg.azimuthal_quadrature.δs, 0.01994243696980254))
-        @test tg.azimuthal_quadrature.ϕs ≈ [0.39670866289121387, 1.1740876639036828, 1.9675049896861103, 2.7448839906985794]
+        aq = tg.azimuthal_quadrature
+
+        @test isequal(RayTracing.n_azim_total(aq), 8)
+        @test isequal(RayTracing.n_azim_half(aq), 4)
+        @test isequal(RayTracing.n_azim_quad(aq), 2)
+        @test isapprox(aq.δ, 0.02)
+        @test all(isapprox.(aq.δs, 0.01994243696980254))
+        @test aq.ϕs ≈ [0.39670866289121387, 1.1740876639036828, 1.9675049896861103, 2.7448839906985794]
+        @test sum(aq.ωₐ) ≈ 0.5
+        @test aq.ωₐ[1] ≈ (aq.ϕs[1] + aq.ϕs[2]) / (4π)
+        @test aq.ωₐ[2] ≈ (π - aq.ϕs[1] - aq.ϕs[2]) / (4π)
+        @test aq.ωₐ[3] ≈ aq.ωₐ[2]
+        @test aq.ωₐ[4] ≈ aq.ωₐ[1]
+
+        tg4 = TrackGenerator(model, 4, 0.02)
+        trace!(tg4)
+        aq4 = tg4.azimuthal_quadrature
+        @test RayTracing.n_azim_quad(aq4) == 1
+        @test aq4.ωₐ ≈ [0.25, 0.25]
+        @test sum(aq4.ωₐ) ≈ 0.5
     end
 
     @testset "Entry and exit points" begin
