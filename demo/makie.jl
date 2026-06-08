@@ -1,4 +1,3 @@
-using Plots
 using Gridap
 using GLMakie
 using RayTracing
@@ -9,7 +8,7 @@ using UnPack
 const TAIL_LENGTH = 20000
 const BACKGROUND_COLOR = RGBf(0.98, 0.98, 0.98);
 
-# Transport problem
+# Transport problem.
 jsonfile = joinpath(@__DIR__, "pincell.json")
 model = DiscreteModelFromFile(jsonfile)
 nφ = 16
@@ -20,7 +19,7 @@ tg = TrackGenerator(model, nφ, δ, bcs=bcs)
 trace!(tg)
 segmentize!(tg)
 
-# Lightweight mesh drawing function
+# Draw a lightweight mesh.
 function draw_lightweight_mesh!(ax, mesh;
     cell_color=RGBf(0.95, 0.95, 0.95),
     edge_color=RGBf(0.8, 0.8, 0.8),
@@ -33,23 +32,23 @@ function draw_lightweight_mesh!(ax, mesh;
     face_labeling = get_face_labeling(model)
     cell_tags = Gridap.Geometry.get_face_tag(face_labeling, 2)
 
-    # Pre-allocate arrays to avoid repeated allocations
+    # Preallocate arrays to avoid repeated allocations.
     cell_count = length(cell_nodes)
     cell_colors = Vector{RGBf}(undef, cell_count)
     all_polygons = Vector{Vector{Point2f}}(undef, cell_count)
 
-    # Prepare all polygon coordinates in a single pass
+    # Prepare all polygon coordinates in a single pass.
     for (cell_id, node_ids) in enumerate(cell_nodes)
         nodes = [node_coordinates[nid] for nid in node_ids]
         all_polygons[cell_id] = Point2f.(getproperty.(nodes, :data))
 
-        # color based on cell type, darker for increasing cell type
+        # Color by cell type, darkening higher tags.
         cell_tag = cell_tags[cell_id]
         cell_color′ = cell_color * (cell_tag / maximum(cell_tags))
         cell_colors[cell_id] = cell_color′
     end
 
-    # Draw all polygons in a single batch operation
+    # Draw all polygons in a single batch operation.
     poly!(ax, all_polygons,
         color=cell_colors,
         strokecolor=edge_color,
@@ -57,7 +56,7 @@ function draw_lightweight_mesh!(ax, mesh;
         alpha=alpha)
 end
 
-# updates the trajectory with a new segment
+# Update the trajectory with a new segment.
 function update_ray!(trajectory_obs, segment, direction)
     if direction == RayTracing.Forward
         start_point = Point2f(segment.p)
@@ -67,63 +66,63 @@ function update_ray!(trajectory_obs, segment, direction)
         end_point = Point2f(segment.p)
     end
 
-    # add new points to the end of the trajectory
+    # Add new points to the end of the trajectory.
     push!(trajectory_obs[], start_point)
     push!(trajectory_obs[], end_point)
 end
 
-# plots a cyclic trajectory with enhanced colors, output can be gif or even mp4
-function trajectory(ax, initial_track, initial_direction, output)
+# Plot a cyclic trajectory; output can be a GIF or an MP4.
+function trajectory(fig, ax, initial_track, initial_direction, output)
 
-    # initialize track and direction
+    # Initialize the track and direction.
     track = initial_track
     dir = initial_direction
 
-    # a circular buffer maintains its size and pushed values replace the latest one
+    # A circular buffer keeps a fixed tail length as new values are pushed.
     x1, y1 = track.p
     trajectory = CircularBuffer{Point2f}(TAIL_LENGTH)
     fill!(trajectory, Point2f(x1, y1))
     trajectory_obs = Observable(trajectory)
 
-    # Draw the trajectory with enhanced styling
+    # Draw the trajectory.
     lines!(ax, trajectory_obs;
         linewidth=2.5,
         color=to_color(:black),
         linestyle=:solid)
 
-    record(fig, output) do io
+    record(fig, output, framerate=60) do io
 
-        # Only update observable every N segments, for performance reasons
+        # Only update the observable every N segments for performance.
         update_counter = 0
         update_frequency = 5
 
         while true
 
-            # the segments are stored in reverse order for backward tracks
+            # Segments are stored in reverse order for backward tracks.
             segments = dir == RayTracing.Backward ? reverse(track.segments) : track.segments
 
-            # for each segment, update the trajectory and record the frame
+            # Update the trajectory and record one frame per segment.
             for (i, segment) in enumerate(segments)
 
                 update_ray!(trajectory_obs, segment, dir)
                 update_counter += 1
 
-                # Only update the observable periodically to reduce overhead
+                # Update the observable periodically to reduce overhead.
                 if update_counter % update_frequency == 0
                     trajectory_obs[] = trajectory_obs[]
                 end
 
-                # record all segments, but we could record only if a condition was met (e.g every 10 segments)
+                # Record every segment; this could be throttled, for example every 10 segments.
                 recordframe!(io)
             end
 
-            # Force final update
+            # Force a final update.
             trajectory_obs[] = trajectory_obs[]
 
-            # to separate tracks into segments
+            # Separate tracks in the rendered trajectory.
             push!(trajectory_obs[], Point2f(NaN, NaN))
 
-            # update the track and direction
+            # Update the track and direction.
             if dir == RayTracing.Forward
                 dir = RayTracing.dir_next_track_fwd(track)
                 track = track.next_track_fwd
@@ -132,7 +131,7 @@ function trajectory(ax, initial_track, initial_direction, output)
                 track = track.next_track_bwd
             end
 
-            # stop the animation when the track returns to the initial track
+            # Stop when the trajectory returns to the initial track.
             track.uid != initial_track.uid || break
         end
     end
@@ -145,7 +144,7 @@ fig = Figure(
     font="Computer Modern",
 )
 
-# Create main axis with enhanced styling
+# Create the main axis.
 ax = Axis(
     fig[1, 1],
     title="Ray Tracing Visualization",
@@ -170,18 +169,18 @@ ax = Axis(
     limits=(nothing, nothing, nothing, nothing)
 )
 
-# Set axis limits
+# Set axis limits.
 GLMakie.xlims!(ax, (tg.mesh.bb_min.x, tg.mesh.bb_max.x))
 GLMakie.ylims!(ax, (tg.mesh.bb_min.y, tg.mesh.bb_max.y))
 
-# Draw lightweight mesh
+# Draw the lightweight mesh.
 draw_lightweight_mesh!(ax, tg.mesh)
 
-# Plot a single track, purposefully selected to look nice
+# Plot one track selected for a clear visualization.
 initial_track = tg.tracks[2][1]
-trajectory(ax, initial_track, RayTracing.Forward, "cyclic_track_with_mesh.gif")
+trajectory(fig, ax, initial_track, RayTracing.Forward, joinpath(@__DIR__, "cyclic_track_with_mesh.gif"))
 
-# This also works and would plot all tracks simultaneously, but it has limited performance
+# This also plots all tracks simultaneously, but performance is poor.
 # for (i, azimuthal_tracks) in enumerate(tg.tracks)
 #     @async trajectory(ax, first(azimuthal_tracks), RayTracing.Forward, "cyclic_track.gif")
 # end

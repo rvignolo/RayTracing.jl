@@ -1,0 +1,12 @@
+[deps]
+Gridap = "56d4f2e9-7ea1-5844-9cf6-b9c51ca7ce8e"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+RayTracing = "3007c720-8091-40db-9339-e09e4eb4c7ea"
+
+[compat]
+Gridap = "0.19.11"
+Plots = "1"
+RayTracing = "0.2"
+
+[sources]
+RayTracing = {path = ".."}

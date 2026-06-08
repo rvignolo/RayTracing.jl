@@ -1,3 +1,4 @@
+using Gridap
 using GridapGmsh
 using GridapGmsh: gmsh, GmshDiscreteModel
 
@@ -6,40 +7,40 @@ gmsh.model.add("pincell")
 
 factory = gmsh.model.geo
 
-# in cm
-p = 1.6        # pitch
+# Dimensions in cm.
+p = 1.6        # Pitch.
 p_2 = p / 2
-ri = 0.5       # internal radius
-t = 0.1        # wall thickness
-ro = ri + t    # external radius
+ri = 0.5       # Inner radius.
+t = 0.1        # Wall thickness.
+ro = ri + t    # Outer radius.
 
 lc = 4e-2
 
-# inner circle
-factory.addPoint(p_2, p_2, 0, lc, 1)       # center
-factory.addPoint(p_2 + ri, p_2, 0, lc, 2)  # right
-factory.addPoint(p_2, p_2 + ri, 0, lc, 3)  # up
-factory.addPoint(p_2 - ri, p_2, 0, lc, 4)  # left
-factory.addPoint(p_2, p_2 - ri, 0, lc, 5)  # down
+# Inner circle.
+factory.addPoint(p_2, p_2, 0, lc, 1)       # Center.
+factory.addPoint(p_2 + ri, p_2, 0, lc, 2)  # Right.
+factory.addPoint(p_2, p_2 + ri, 0, lc, 3)  # Up.
+factory.addPoint(p_2 - ri, p_2, 0, lc, 4)  # Left.
+factory.addPoint(p_2, p_2 - ri, 0, lc, 5)  # Down.
 factory.addCircleArc(2, 1, 3, 1)
 factory.addCircleArc(3, 1, 4, 2)
 factory.addCircleArc(4, 1, 5, 3)
 factory.addCircleArc(5, 1, 2, 4)
 factory.addCurveLoop([1, 2, 3, 4], 1)
 
-# outer circle
-# factory.addPoint(p_2, p_2, 0, lc, 1)     # center
-factory.addPoint(p_2 + ro, p_2, 0, lc, 6)  # right
-factory.addPoint(p_2, p_2 + ro, 0, lc, 7)  # up
-factory.addPoint(p_2 - ro, p_2, 0, lc, 8)  # left
-factory.addPoint(p_2, p_2 - ro, 0, lc, 9)  # down
+# Outer circle.
+# factory.addPoint(p_2, p_2, 0, lc, 1)     # Center.
+factory.addPoint(p_2 + ro, p_2, 0, lc, 6)  # Right.
+factory.addPoint(p_2, p_2 + ro, 0, lc, 7)  # Up.
+factory.addPoint(p_2 - ro, p_2, 0, lc, 8)  # Left.
+factory.addPoint(p_2, p_2 - ro, 0, lc, 9)  # Down.
 factory.addCircleArc(6, 1, 7, 5)
 factory.addCircleArc(7, 1, 8, 6)
 factory.addCircleArc(8, 1, 9, 7)
 factory.addCircleArc(9, 1, 6, 8)
 factory.addCurveLoop([5, 6, 7, 8], 2)
 
-# square cell
+# Square cell.
 factory.addPoint(0, 0, 0, lc, 10)
 factory.addPoint(p, 0, 0, lc, 11)
 factory.addPoint(p, p, 0, lc, 12)
@@ -51,10 +52,10 @@ factory.addLine(13, 10, 12)
 factory.addCurveLoop([9, 10, 11, 12], 3)
 
 factory.addPlaneSurface([1], 1)
-factory.addPlaneSurface([2, 1], 2) # le agrego el hole `1` (no estoy teniendo en cuenta nada de sentidos de giro, no se si hay que hacerlo)
+factory.addPlaneSurface([2, 1], 2) # Add loop `1` as a hole; orientation is not handled here.
 factory.addPlaneSurface([3, 2, 1], 3)
 
-# materials
+# Materials.
 factory.addPhysicalGroup(2, [1], 1)
 factory.addPhysicalGroup(2, [2], 2)
 factory.addPhysicalGroup(2, [3], 3)
@@ -62,7 +63,7 @@ GridapGmsh.gmsh.model.setPhysicalName(2, 1, "pin")
 GridapGmsh.gmsh.model.setPhysicalName(2, 2, "cladding")
 GridapGmsh.gmsh.model.setPhysicalName(2, 3, "water")
 
-# boundaries
+# Boundaries.
 factory.addPhysicalGroup(1,  [9], 4)
 factory.addPhysicalGroup(1, [10], 5)
 factory.addPhysicalGroup(1, [11], 6)
@@ -76,16 +77,16 @@ factory.synchronize()
 
 gmsh.model.mesh.generate(2)
 
-gmsh.write("pincell.msh")
+mshfile = joinpath(@__DIR__, "pincell.msh")
+jsonfile = joinpath(@__DIR__, "pincell.json")
+gmsh.write(mshfile)
 
 if !("-nopopup" in ARGS)
     gmsh.fltk.run()
 end
 
-gmsh.finalize
+gmsh.finalize()
 
-# move to json file format
-using GridapGmsh: GmshDiscreteModel
-mshfile = joinpath(@__DIR__,"pincell.msh")
+# Convert the mesh to Gridap's JSON format.
 model = GmshDiscreteModel(mshfile; renumber=true)
-Gridap.Io.to_json_file(model, "pincell.json")
+Gridap.Io.to_json_file(model, jsonfile)

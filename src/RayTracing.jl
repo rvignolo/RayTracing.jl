@@ -29,7 +29,9 @@ include("azimuthal_quad.jl")
 include("trackgenerator.jl")
 include("plot_recipes.jl")
 
-export BoundaryConditions, Vacuum, Reflective, Periodic
+export BoundaryConditions
+export Vacuum, Reflective, Periodic
+export reflective_boundaries, periodic_boundaries, vacuum_boundaries
 export TrackGenerator
 export trace!
 export segmentize!

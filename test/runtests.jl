@@ -5,6 +5,87 @@ using Test
 jsonfile = joinpath(@__DIR__, "../demo/pincell.json")
 model = DiscreteModelFromFile(jsonfile)
 
+const RUN_EXTENDED_THREAD_TESTS = get(ENV, "RAYTRACING_EXTENDED_TESTS", "false") == "true"
+
+function assert_equivalent_segmentization(serial, threaded)
+    @test serial.volumes ≈ threaded.volumes
+    @test length(serial.tracks_by_uid) == length(threaded.tracks_by_uid)
+
+    serial_segment_vectors = [track.segments for track in serial.tracks_by_uid]
+    threaded_segment_vectors = [track.segments for track in threaded.tracks_by_uid]
+    @test length(unique(objectid.(serial_segment_vectors))) == length(serial_segment_vectors)
+    @test length(unique(objectid.(threaded_segment_vectors))) == length(threaded_segment_vectors)
+
+    for (serial_track, threaded_track) in zip(serial.tracks_by_uid, threaded.tracks_by_uid)
+        @test serial_track.segments == threaded_track.segments
+        @test serial_track.next_track_fwd.uid == threaded_track.next_track_fwd.uid
+        @test serial_track.next_track_bwd.uid == threaded_track.next_track_bwd.uid
+        @test RayTracing.dir_next_track_fwd(serial_track) ==
+              RayTracing.dir_next_track_fwd(threaded_track)
+        @test RayTracing.dir_next_track_bwd(serial_track) ==
+              RayTracing.dir_next_track_bwd(threaded_track)
+    end
+
+    return nothing
+end
+
+function threaded_segmentation_case(model, n_azim, spacing, bcs, volume_correction)
+    serial = TrackGenerator(model, n_azim, spacing; bcs, volume_correction)
+    threaded = TrackGenerator(model, n_azim, spacing; bcs, volume_correction)
+
+    trace!(serial)
+    trace!(threaded)
+    segmentize!(serial; parallel=false)
+    segmentize!(threaded; parallel=true)
+
+    assert_equivalent_segmentization(serial, threaded)
+
+    baseline_segments = [copy(track.segments) for track in threaded.tracks_by_uid]
+    segmentize!(threaded; parallel=true)
+    for (baseline, track) in zip(baseline_segments, threaded.tracks_by_uid)
+        @test baseline == track.segments
+    end
+
+    return threaded
+end
+
+@testset "Geometry utilities" begin
+    point = RayTracing.Point2D(1.0, 2.0)
+    @test RayTracing.is_approx(point, point)
+
+    shifted_model = simplexify(CartesianDiscreteModel((-3.0, -2.0, -4.0, -1.0), (1, 1)))
+    shifted_mesh = RayTracing.Mesh(shifted_model)
+
+    @test shifted_mesh.bb_min == RayTracing.Point2D(-3.0, -4.0)
+    @test shifted_mesh.bb_max == RayTracing.Point2D(-2.0, -1.0)
+    @test RayTracing.on_boundary(shifted_mesh, RayTracing.Point2D(-3.0, -2.0))
+    @test !RayTracing.on_boundary(shifted_mesh, RayTracing.Point2D(-4.0, -2.0))
+    @test !RayTracing.on_boundary(shifted_mesh, RayTracing.Point2D(-2.5, -5.0))
+
+    cartesian_model = CartesianDiscreteModel((-1.0, 1.0, -1.0, 1.0), (1, 1))
+    quad_model = Gridap.Geometry.UnstructuredDiscreteModel(cartesian_model)
+    quad_mesh = RayTracing.Mesh(quad_model)
+    quad_node_ids = quad_mesh.cell_nodes[1]
+
+    @test quad_mesh.node_cells isa Vector{Vector{Int32}}
+    @test quad_mesh.cell_nodes isa Vector{Vector{Int32}}
+    @test quad_mesh.ordered_cell_nodes isa Vector{Vector{Int32}}
+    @test quad_mesh.node_coordinates isa Vector{RayTracing.Point2D{Float64}}
+    @test length(quad_mesh.node_coordinates) == RayTracing.num_nodes(quad_mesh)
+    @test length(quad_mesh.ordered_cell_nodes) == length(quad_mesh.cell_nodes)
+    @test RayTracing.point_in_element(quad_mesh, quad_node_ids, RayTracing.Point2D(0.0, 0.0))
+    @test !RayTracing.point_in_element(quad_mesh, quad_node_ids, RayTracing.Point2D(2.0, 0.0))
+    @test RayTracing.element_volume(quad_mesh, quad_node_ids) ≈ 4.0
+    @test RayTracing.element_volume(quad_mesh, 1) ≈ 4.0
+
+    tg = TrackGenerator(quad_model, 4, 0.7; bcs=reflective_boundaries(), volume_correction=true)
+    trace!(tg)
+    @test eltype(tg.tracks_by_uid) == RayTracing.Track{Float64}
+    @test eltype(tg.tracks[1]) == RayTracing.Track{Float64}
+    segmentize!(tg)
+    @test tg.volumes ≈ [4.0]
+end
+
 @testset "Main tests" begin
 
     tg = TrackGenerator(model, 8, 0.02)
@@ -19,12 +100,26 @@ model = DiscreteModelFromFile(jsonfile)
     end
 
     @testset "Azimuthal quadrature" begin
-        @test isequal(RayTracing.nazim(tg.azimuthal_quadrature), 8)
-        @test isequal(RayTracing.nazim2(tg.azimuthal_quadrature), 4)
-        @test isequal(RayTracing.nazim4(tg.azimuthal_quadrature), 2)
-        @test isapprox(tg.azimuthal_quadrature.δ, 0.02)
-        @test all(isapprox.(tg.azimuthal_quadrature.δs, 0.01994243696980254))
-        @test tg.azimuthal_quadrature.ϕs ≈ [0.39670866289121387, 1.1740876639036828, 1.9675049896861103, 2.7448839906985794]
+        aq = tg.azimuthal_quadrature
+
+        @test isequal(RayTracing.n_azim_total(aq), 8)
+        @test isequal(RayTracing.n_azim_half(aq), 4)
+        @test isequal(RayTracing.n_azim_quad(aq), 2)
+        @test isapprox(aq.δ, 0.02)
+        @test all(isapprox.(aq.δs, 0.01994243696980254))
+        @test aq.ϕs ≈ [0.39670866289121387, 1.1740876639036828, 1.9675049896861103, 2.7448839906985794]
+        @test sum(aq.ωₐ) ≈ 0.5
+        @test aq.ωₐ[1] ≈ (aq.ϕs[1] + aq.ϕs[2]) / (4π)
+        @test aq.ωₐ[2] ≈ (π - aq.ϕs[1] - aq.ϕs[2]) / (4π)
+        @test aq.ωₐ[3] ≈ aq.ωₐ[2]
+        @test aq.ωₐ[4] ≈ aq.ωₐ[1]
+
+        tg4 = TrackGenerator(model, 4, 0.02)
+        trace!(tg4)
+        aq4 = tg4.azimuthal_quadrature
+        @test RayTracing.n_azim_quad(aq4) == 1
+        @test aq4.ωₐ ≈ [0.25, 0.25]
+        @test sum(aq4.ωₐ) ≈ 0.5
     end
 
     @testset "Entry and exit points" begin
@@ -39,6 +134,48 @@ model = DiscreteModelFromFile(jsonfile)
             l1 = track.ℓ
             l2 = sum(RayTracing.ℓ.(track.segments))
             @test isapprox(l1, l2)
+        end
+    end
+end
+
+@testset "Parallel segmentation" begin
+    cases = (
+        (; name="vacuum", bcs=vacuum_boundaries(), volume_correction=false),
+        (; name="reflective", bcs=reflective_boundaries(), volume_correction=false),
+        (; name="periodic", bcs=periodic_boundaries(), volume_correction=false),
+        (; name="volume correction", bcs=vacuum_boundaries(), volume_correction=true),
+    )
+
+    for case in cases
+        @testset "$(case.name)" begin
+            threaded = threaded_segmentation_case(
+                model, 4, 0.16, case.bcs, case.volume_correction
+            )
+            @test_throws ArgumentError segmentize!(threaded; parallel=:sometimes)
+        end
+    end
+
+    if RUN_EXTENDED_THREAD_TESTS
+        @testset "extended stress" begin
+            extended_cases = (
+                (; name="vacuum fine", n_azim=16, spacing=0.04,
+                 bcs=vacuum_boundaries(), volume_correction=false),
+                (; name="reflective fine", n_azim=16, spacing=0.04,
+                 bcs=reflective_boundaries(), volume_correction=false),
+                (; name="periodic fine", n_azim=16, spacing=0.04,
+                 bcs=periodic_boundaries(), volume_correction=false),
+            )
+
+            for case in extended_cases
+                @testset "$(case.name)" begin
+                    for _ in 1:8
+                        threaded_segmentation_case(
+                            model, case.n_azim, case.spacing, case.bcs,
+                            case.volume_correction
+                        )
+                    end
+                end
+            end
         end
     end
 end
@@ -161,7 +298,7 @@ end
         @test DirNextTrackBwd == RayTracing.Backward
     end
 
-    # a more complicated case
+    # A more complicated case.
     tg = TrackGenerator(model, 8, 0.8; bcs=bcs)
     trace!(tg)
 

@@ -2,150 +2,158 @@
 
 [![Build Status](https://github.com/rvignolo/RayTracing.jl/workflows/CI/badge.svg)](https://github.com/rvignolo/RayTracing.jl/actions)
 
-A high-performance Julia package for ray tracing in unstructured meshes, designed for neutron transport calculations and other particle transport simulations.
-
-## Overview
-
-RayTracing.jl implements the **Method of Characteristics (MOC)** for solving the neutron transport equation. The partial integro-differential [neutron transport equation](https://en.wikipedia.org/wiki/Neutron_transport#Neutron_transport_equation) can be cast as an ordinary differential equation over tracks that emulate neutron trajectories across a problem domain. This library addresses the cyclic ray tracing of those paths over any 2D rectangular mesh and computes quantities used to solve the transport equation in [NeutronTransport.jl](https://github.com/rvignolo/NeutronTransport.jl).
-
-### Key Features
-
-- **Efficient Ray Tracing**: Fast generation of cyclic ray trajectories
-- **Unstructured Mesh Support**: Works with any 2D mesh geometry
-- **Multiple Boundary Conditions**: Vacuum, reflective, and periodic boundaries
-- **High-Performance Visualization**: Optimized plotting recipes for large datasets
-- **Transport-Ready**: Direct integration with neutron transport solvers
-
-## Demo
-
-This demo showcases the ray tracing algorithm. The first animation shows ray tracing without the mesh, while the second shows ray tracing with the mesh overlay. The mesh is a simple pin-cell geometry, demonstrating how superposition of tracks over the mesh generates segments.
+RayTracing.jl generates two-dimensional Method of Characteristics tracks over Gridap
+unstructured meshes. It builds cyclic track graphs, segments tracks by mesh cell, and
+computes ray-tracing volumes for neutron transport workflows such as
+[NeutronTransport.jl](https://github.com/rvignolo/NeutronTransport.jl).
 
 <p align="center">
-    <img width="400" src="demo/cyclic_track_no_mesh.gif" alt="Cyclic Ray Tracing">
-    <img width="400" src="demo/cyclic_track_with_mesh.gif" alt="Cyclic Ray Tracing with Mesh">
+  <img width="46%" src="demo/pincell-geometry.png" alt="Pin-cell material geometry">
+  <img width="46%" src="demo/cyclic_track_with_mesh.gif" alt="Cyclic ray tracing over the pin-cell mesh">
 </p>
+
+## Features
+
+- Unstructured 2D Gridap meshes, including triangles and quadrilaterals.
+- Vacuum, reflective, and periodic rectangular-domain boundary conditions.
+- Cyclic track connectivity for forward and backward transport sweeps.
+- Track segmentation by mesh element.
+- Thread-aware track segmentation with `segmentize!(tg; parallel=:auto)`.
+- Optional exact geometric volume correction.
+- Lightweight Plots.jl recipes through RecipesBase.
 
 ## Installation
 
-The package can be installed using the Julia package manager. From the Julia REPL, type `]` to enter the `Pkg` REPL mode and run:
-
 ```julia
-pkg> add RayTracing
+import Pkg
+Pkg.add("RayTracing")
 ```
 
-Or, equivalently, via the `Pkg` API:
+For local development:
 
 ```julia
-julia> import Pkg; Pkg.add("RayTracing")
+import Pkg
+Pkg.develop(path="/path/to/RayTracing.jl")
 ```
 
 ## Quick Start
 
 ```julia
+using Gridap
 using RayTracing
-using GridapGmsh: GmshDiscreteModel
 
-# Load mesh and define a model
-mshfile = joinpath(@__DIR__, "demo", "pincell.msh")
-model = GmshDiscreteModel(mshfile; renumber=true)
+model = DiscreteModelFromFile("demo/pincell.json")
 
-# Configure ray tracing parameters
-nφ = 8   # number of azimuthal angles
-δ = 2e-2 # azimuthal spacing
+n_azim = 8
+spacing = 0.08
+bcs = reflective_boundaries()
 
-# Initialize track generator
-tg = TrackGenerator(model, nφ, δ)
+tg = TrackGenerator(model, n_azim, spacing; bcs)
+trace!(tg)
+segmentize!(tg)
 
-# Perform ray tracing and segmentation
-trace!(tg)      # Generate tracks
-segmentize!(tg) # Compute segments
+println(tg.n_total_tracks)
+println(sum(length(track.segments) for track in tg.tracks_by_uid))
 ```
 
 ## Workflow
 
-The ray tracing process consists of two main steps:
-
-1. **Track Tracing**: Generate ray trajectories across the domain
-2. **Segmentation**: Discretize tracks into segments within mesh elements
-
 | ![](demo/pincell-msh.png) | ![](demo/pincell-tracks.png) | ![](demo/pincell-segments.png) |
-|:-------------:|:-------------:|:-------------:|
-| **Geometry / Mesh** | **Tracks** | **Segments** |
+|:-------------------------:|:----------------------------:|:------------------------------:|
+| Mesh and materials | Cyclic tracks | Cell-local segments |
 
-## Examples
-
-### Basic Usage
+## Boundary Conditions
 
 ```julia
-using RayTracing
-using Gridap
+vacuum_boundaries()
+reflective_boundaries()
+periodic_boundaries()
 
-# Load mesh from file
-model = DiscreteModelFromFile("mesh.json")
+BoundaryConditions(
+    top=Vacuum,
+    bottom=Reflective,
+    left=Periodic,
+    right=Periodic,
+)
+```
 
-# Configure parameters
-nφ = 16  # azimuthal angles
-δ = 0.08 # spacing
-bcs = BoundaryConditions(top=Reflective, bottom=Reflective,
-                        left=Reflective, right=Reflective)
+## Plotting
 
-# Create and run ray tracing
-tg = TrackGenerator(model, nφ, δ, bcs=bcs)
-trace!(tg)
-segmentize!(tg)
+RayTracing does not require Plots.jl for core tracking. Load Plots.jl when you want the
+recipes:
 
-# Visualize results
+```julia
 using Plots
-plot(tg.mesh, alpha=0.3, label="Mesh")
-plot!(tg, label="Tracks")
+
+plot(tg.mesh)
+plot(tg)
+plot(tg.tracks_by_uid)
 ```
 
-### Boundary Conditions
+The README assets are reproducible:
+
+```bash
+julia --project=demo demo/pincell.jl
+```
+
+The mesh source can also be regenerated from gmsh in an environment that has GridapGmsh:
+
+```bash
+julia demo/pincell-gmsh.jl -nopopup
+```
+
+## Transport Integration
+
+After `segmentize!(tg)`, each `Track` contains ordered `Segment`s with:
+
+- `segment.p` and `segment.q`: segment endpoints.
+- `segment.ℓ`: segment length.
+- `segment.element`: Gridap cell id.
+
+The full track graph is available through `tg.tracks_by_uid`, with `next_track_fwd` and
+`next_track_bwd` links plus direction helpers for cyclic sweeps.
+
+By default, `segmentize!` uses `parallel=:auto`, which runs track segmentation across Julia
+threads when multiple threads are available:
 
 ```julia
-# Reflective boundaries (rays bounce back)
-bcs = BoundaryConditions(top=Reflective, bottom=Reflective,
-                        left=Reflective, right=Reflective)
-
-# Periodic boundaries (rays wrap around)
-bcs = BoundaryConditions(top=Periodic, bottom=Periodic,
-                        left=Periodic, right=Periodic)
-
-# Vacuum boundaries (rays exit domain)
-bcs = BoundaryConditions(top=Vacuum, bottom=Vacuum,
-                        left=Vacuum, right=Vacuum)
+segmentize!(tg; parallel=:auto)
 ```
 
-## Advanced Features
+Run Julia with multiple threads, for example `julia -t auto`, to enable parallel execution.
+Use `parallel=false` to force serial execution or `parallel=true` to force threaded execution
+when threads are available.
 
-### Custom Mesh Generation
+Threaded segmentation is intended for one `segmentize!(tg)` call at a time. It mutates each
+track's own `segments` vector in parallel, then fills `tg.volumes` serially after all tracks
+finish.
 
-Create a `gmsh` mesh using any available tool. Check out [GridapGmsh.jl](https://github.com/gridap/GridapGmsh.jl) for convenience. See [this example](demo/pincell-gmsh.jl) for a simple pin-cell geometry definition.
+## Documentation
 
-### Integration with Transport Solvers
+Build local docs with:
 
-```julia
-# Access segments for transport calculations
-for track in tg.tracks_by_uid
-    for segment in track.segments
-        # Use segment.ℓ for length
-        # Use segment.element for material properties
-        # Use segment.p and segment.q for coordinates
-    end
-end
+```bash
+julia --project=docs docs/make.jl
 ```
 
-## Contributing
+## Benchmarks
 
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+The benchmark suite uses BenchmarkTools and lives in `benchmark/`:
+
+```bash
+julia --project=benchmark benchmark/runbenchmarks.jl --quick
+julia --project=benchmark benchmark/runbenchmarks.jl
+julia --project=benchmark benchmark/runbenchmarks.jl --output benchmark/results.json
+```
+
+Benchmark definitions are grouped in `benchmark/benchmarks.jl` so they can also be loaded by
+PkgBenchmark-style workflows.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+RayTracing.jl is distributed under the MIT License. See [LICENSE](LICENSE).
 
 ## Citation
-
-If you use RayTracing.jl in your research, please cite:
 
 ```bibtex
 @software{raytracing_jl,
