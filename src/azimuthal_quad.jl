@@ -58,7 +58,7 @@ supp_idx = supplementary_azimuthal_idx(aq, 1)  # 4
 The weights `ωₐ` are computed to ensure proper numerical integration:
 
 ```julia
-# The sum of weights should integrate to unity.
+# The sum of weights covers the azimuthal half-plane represented by tracks.
 sum(aq.ωₐ) ≈ 0.5  # Over the half-plane (0, π).
 ```
 
@@ -276,11 +276,12 @@ spacing between adjacent azimuthal angles.
 
 ## Weight Calculation
 
-For each azimuthal angle index `i` in the first quadrant:
+For each azimuthal angle index `i` in the first quadrant, the weight is the angular
+bin width divided by `2π`:
 
-- **First angle (i=1)**: `ωₐ[i] = (ϕs[i+1] - ϕs[i]) / (4π)`
-- **Last angle (i=N4)**: `ωₐ[i] = (π - ϕs[i] - ϕs[i-1]) / (4π)`
-- **Middle angles**: `ωₐ[i] = (ϕs[i+1] - ϕs[i-1]) / (4π)`
+- **Lower edge**: `0` for the first angle, otherwise `(ϕs[i-1] + ϕs[i]) / 2`
+- **Upper edge**: `π/2` for the last angle, otherwise `(ϕs[i] + ϕs[i+1]) / 2`
+- **Weight**: `ωₐ[i] = (upper - lower) / (2π)`
 
 The weights are then copied to the supplementary angles using the relationship `ωₐ[j] =
 ωₐ[i]` where `j = supplementary_azimuthal_idx(aq, i)`.
@@ -294,9 +295,8 @@ The weights are then copied to the supplementary angles using the relationship `
 ## Mathematical Background
 
 The weights represent the angular measure associated with each azimuthal direction,
-normalized by `4π` to ensure proper integration over the full solid angle. This
-normalization accounts for the fact that we're working in 2D (azimuthal angles only) but the
-weights should integrate to unity over the full angular domain.
+normalized by `2π`. Tracks explicitly cover the azimuthal half-plane `(0, π)`, so
+`sum(ωₐ)` over the stored half-plane is `1/2`.
 
 ## Example
 ```julia
@@ -309,17 +309,13 @@ init_weights!(aq)
 function init_weights!(aq::AzimuthalQuadrature)
     @unpack ϕs, ωₐ = aq
     n_azim_4 = n_azim_quad(aq)
-    inv_4π = inv(4π)
+    inv_2π = inv(2π)
 
     for i in 1:n_azim_4
-        if isone(i)
-            ωₐ[i] = ϕs[i+1] - ϕs[i]
-        elseif isequal(i, n_azim_4)
-            ωₐ[i] = π - ϕs[i] - ϕs[i-1]
-        else
-            ωₐ[i] = ϕs[i+1] - ϕs[i-1]
-        end
-        ωₐ[i] *= inv_4π
+        lower = isone(i) ? zero(eltype(ϕs)) : (ϕs[i-1] + ϕs[i]) / 2
+        upper = isequal(i, n_azim_4) ? oftype(ϕs[i], π / 2) :
+                (ϕs[i] + ϕs[i+1]) / 2
+        ωₐ[i] = (upper - lower) * inv_2π
         ωₐ[supplementary_azimuthal_idx(aq, i)] = ωₐ[i]
     end
 
